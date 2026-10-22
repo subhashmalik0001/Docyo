@@ -429,12 +429,12 @@ struct JobPillView: View {
         static let iconSpacing: CGFloat = 8
         static let labelWidth: CGFloat = 92
         static let barWidth: CGFloat = 96
-        static func size(rows: Int) -> CGSize { CGSize(width: 360, height: 48 + CGFloat(min(max(rows, 1), 3)) * 56) }
+        static func size(rows: Int) -> CGSize { CGSize(width: 384, height: 56 + CGFloat(min(max(rows, 1), 3)) * 58) }
     }
     private var working: Bool { presentation.jobs.contains { !$0.status.isFinished } }
     private var failed: Bool { presentation.jobs.contains { if case .failed = $0.status { return true }; return false } }
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 14) {
             NotchCompanion()
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
@@ -464,7 +464,7 @@ struct JobPillView: View {
             }
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
-        .frame(width: 360, height: contentHeight)
+        .frame(width: 384, height: contentHeight)
         .opacity(presentation.expanded ? 1 : 0)
         .offset(y: presentation.expanded || reduceMotion ? 0 : -16)
         .padding(.top, topInset)
@@ -481,7 +481,7 @@ struct JobPillView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                let nx = max(-1.0, min(1.0, (location.x - 180) / 180))
+                let nx = max(-1.0, min(1.0, (location.x - 192) / 192))
                 companion.watch(direction: nx)
             case .ended:
                 companion.watch(direction: 0)
@@ -489,7 +489,7 @@ struct JobPillView: View {
         }
         .mask(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: presentation.expanded ? 24 : 10, bottomTrailingRadius: presentation.expanded ? 24 : 10, topTrailingRadius: 0)
-                .frame(width: presentation.expanded ? 360 : min(360, collapsedWidth),
+                .frame(width: presentation.expanded ? 384 : min(384, collapsedWidth),
                        height: presentation.expanded ? contentHeight + topInset : max(2, topInset))
         }
         .allowsHitTesting(presentation.expanded)

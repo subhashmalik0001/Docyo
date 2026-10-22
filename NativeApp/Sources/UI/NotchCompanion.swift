@@ -8,76 +8,75 @@ struct NotchCompanion: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 12, paused: ![.processing, .received, .delivering].contains(state.phase) || reduceMotion)) { timeline in
-            let phase = !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 5 : 0
-            let bob = reduceMotion ? 0 : state.phase == .received ? -abs(sin(phase)) * 6 : state.phase == .delivering ? -abs(sin(phase)) * 3 : working ? sin(phase) * 2 : 0
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: ![.processing, .received, .delivering].contains(state.phase) || reduceMotion)) { timeline in
+            let phase = !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 4.5 : 0
+            let bob = reduceMotion ? 0 : state.phase == .received ? -abs(sin(phase)) * 5 : state.phase == .delivering ? -abs(sin(phase)) * 3 : working ? sin(phase) * 1.5 : 0
 
             ZStack {
                 // Interactive document float on file received / delivered
                 if state.phase == .received || state.phase == .delivering {
                     Image(systemName: "doc.fill")
-                        .font(.system(size: 15))
+                        .font(.system(size: 16))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1.5)
-                        .offset(x: state.phase == .received ? -24 : 24, y: bob - 4)
+                        .offset(x: state.phase == .received ? -32 : 32, y: bob - 4)
                 }
 
                 // Success sparkles
                 if state.phase == .success {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.yellow)
                         .shadow(color: .orange.opacity(0.5), radius: 4)
-                        .offset(x: 22, y: -20)
+                        .offset(x: 28, y: -26)
                 }
 
                 // Soft ground shadow beneath avatar
                 Ellipse()
-                    .fill(Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.22))
-                    .frame(width: 44, height: 7)
-                    .offset(y: 24)
+                    .fill(Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.24))
+                    .frame(width: 56, height: 9)
+                    .offset(y: 32)
 
                 // 3D Grape Penguin Vinyl Toy Avatar
                 ZStack {
                     // Real 3D WebGL Three.js Avatar from avtar.html with cursor gaze tracking
                     Avatar3DView(allowsInteraction: true, transparentBackground: true, gaze: CGPoint(x: state.gaze, y: 0))
-                        .frame(width: 52, height: 52)
-                        .shadow(color: Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.28), radius: 6, x: 0, y: 3)
+                        .frame(width: 68, height: 68)
+                        .shadow(color: Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.28), radius: 8, x: 0, y: 4)
 
                     // Processing gear overlay
                     if working {
                         Image(systemName: "gearshape.fill")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                             .foregroundStyle(.white.opacity(0.95))
                             .shadow(color: .black.opacity(0.4), radius: 2)
                             .rotationEffect(.degrees(reduceMotion ? 0 : phase * 30))
-                            .offset(x: 18, y: 15)
+                            .offset(x: 24, y: 20)
                     }
 
                     // Failure indicator
                     if failed {
                         Image(systemName: "exclamationmark.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundStyle(.red)
                             .shadow(color: .black.opacity(0.3), radius: 2)
-                            .offset(x: 18, y: 15)
+                            .offset(x: 24, y: 20)
                     }
 
                     // Cancelled indicator
                     if state.phase == .cancelled {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundStyle(.white.opacity(0.75))
-                            .offset(x: 18, y: 15)
+                            .offset(x: 24, y: 20)
                     }
                 }
-                .offset(x: state.phase == .watching ? state.gaze * 3 : 0, y: bob)
-                .rotationEffect(.degrees(working && !reduceMotion ? sin(phase / 2) * 4 : 0))
+                .offset(y: bob)
+                .rotationEffect(.degrees(working && !reduceMotion ? sin(phase / 2) * 3 : 0))
             }
         }
-        .frame(width: 66, height: 64)
-        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: state.phase)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: state.gaze)
+        .frame(width: 80, height: 78)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: state.phase)
         .accessibilityHidden(true)
     }
 }
