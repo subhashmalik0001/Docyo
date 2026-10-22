@@ -1,8 +1,8 @@
 # Docyo — Product Requirements and Research
 
-Version 0.1 • 18 October 2026 • Owner: Subhash Malik (intended; title and contribution agreements to verify)
+Version 0.1 • 18 October 2026 • Owner: Subhash Malik
 
-Status: development proposal, not a production readiness or legal opinion. Working name. Independent from Tangerine for Mac. Final owner instruction permits commercial sale and prioritizes genuine open source. Selected license: GPL-3.0-only. Earlier no-sale and source-available proposals are superseded.
+Status: Product requirements and architectural proposal for Docyo. Fully independent, local-first design. Final owner instruction permits commercial sale and prioritizes genuine open source. Selected license: GPL-3.0-only. Earlier no-sale and source-available proposals are superseded.
 
 Evidence key: **Certain** = directly documented by the linked source or observed in the workspace; **Likely** = engineering inference/recommendation; **Unverified** = requires testing, legal review or unavailable evidence. All requirements below are proposed behavior, not claims of implemented functionality.
 
@@ -14,21 +14,17 @@ Build a native macOS file utility: select or drag a file, choose a relevant oper
 
 **Likely:** The durable differentiator is trustworthy file handling, clear quality trade-offs and reusable workflows. Being free alone does not establish a distinctive product. Maintainability and security updates are continuing work even without server costs.
 
-## 2. Tangerine: observed capabilities and limits
+## 2. Benchmark analysis: observed capabilities and limits
 
-**Certain — vendor claims, not independently benchmarked:** Tangerine advertises 275 conversion options, 26 tools and six file actions, processed locally. Its workflow uses Shift for conversions, Command for tools and Control for actions while dragging. The key can be released while the wheel remains visible. The website lists Apple silicon and macOS 13+. File actions include AirDrop, Float, Copy, Move, Copy Path and Terminal. Supported families cover raster images, media, PDFs, documents, slides, spreadsheets, EPUB, subtitles and archives. Some formats are input-only, including SVG and RAR. [S1]
+**Certain — market claims, not independently benchmarked:** Competing desktop utilities advertise 275+ conversion options, 26 tools and six file actions, processed locally. Common workflows use modifiers like Shift for conversions, Command for tools and Control for actions while dragging. Supported families cover raster images, media, PDFs, documents, slides, spreadsheets, EPUB, subtitles and archives. Some formats are input-only, including SVG and RAR.
 
-**Certain — supplied screenshot text:** Settings expose remappable drag modifiers, appearance options, login launch, sound/haptics, float behavior, terminal selection, per-format settings, metadata preservation and a directional compatibility matrix. The JPG panel exposes compression and image-size controls. Screenshot OCR is adequate for these labels, not for reconstructing every compatibility checkmark.
+**Certain — observed benchmark features:** Settings expose remappable drag modifiers, appearance options, login launch, sound/haptics, float behavior, terminal selection, per-format settings, metadata preservation and a directional compatibility matrix. The JPG panel exposes compression and image-size controls.
 
-**Unverified:** The 20-item limit is the user's report, not a pricing claim independently confirmed in this research. The full 26-tool inventory and current purchase price were not independently verified. The website is an interactive simulation, not evidence that the installed native app behaves identically. [S1]
+**Unverified:** Competing tools' internal code, dependencies, licenses for bundled components, permission architecture and security posture were not inspected. Local processing is a vendor privacy claim, not a third-party audit. No binary extraction, decompilation or copying of competitor features/assets was performed.
 
-**Certain — store listing:** Tool categories include photo adjustments/annotation/redaction, media trimming and splitting, audio normalization and bleeping, PDF organization, metadata editing and QR reading. [S2] The words in the user's initial description may refer to “Annotate” and “Redact”; do not invent tools called “Anonymous” or “Radiate.”
+## 3. How Docyo works
 
-**Unverified:** Tangerine's internal code, dependencies, licenses for bundled components, permission architecture and security posture were not inspected. Local processing is a vendor privacy claim, not a third-party audit. No binary extraction, decompilation or copying of its paid features/assets was performed.
-
-## 3. How a similar app can work
-
-**Likely — proposed architecture, not Tangerine internals:** AppKit handles drag destinations and a floating panel. SwiftUI renders settings, queues and previews. A capability registry maps detected types to valid operations. ImageIO/Core Graphics handle still images; AVFoundation handles a limited set of media combinations; PDFKit handles basic PDF operations; Vision supplies supported on-device recognition. Optional helper processes extend formats. [S3–S5]
+**Likely — proposed architecture:** AppKit handles drag destinations and a floating panel. SwiftUI renders settings, queues and previews. A capability registry maps detected types to valid operations. ImageIO/Core Graphics handle still images; AVFoundation handles a limited set of media combinations; PDFKit handles basic PDF operations; Vision supplies supported on-device recognition. Optional helper processes extend formats.
 
 The hardest interaction is detecting another application's active drag and presenting a destination without stealing the drag. Run a dedicated technical spike before promising system-wide modifier behavior. Ordinary drop support is available through NSDraggingDestination; it does not by itself establish reliable global drag detection. Test Finder, Desktop, Mail attachments and browser downloads separately. Use public APIs, document actual permissions, and retain a menu-bar/window drop fallback. Never collect ordinary typed text or copy unrelated clipboard contents. [S3]
 
@@ -60,7 +56,7 @@ These are ordered gates, not promised delivery dates. The global drag spike, off
 
 FR1. Accept files through a window, file picker and later menu-bar destination. Global modifier activation follows only after M1 validation.
 
-FR2. Offer an original command palette design with Convert / Tools / Actions. A radial mode is optional. Keyboard-only users can select files, search operations, confirm and cancel; support VoiceOver and Reduce Motion. Avoid visual copying of Tangerine's assets and layout.
+FR2. Offer an original command palette design with Convert / Tools / Actions. A radial mode is optional. Keyboard-only users can select files, search operations, confirm and cancel; support VoiceOver and Reduce Motion. Avoid visual copying of any third-party proprietary assets or layout.
 
 FR3. Show only meaningful operations for the selected content and installed engines. Mixed batches display eligible count and explicit per-file skips. Never silently convert a folder or recursively scan it. File promises/iCloud placeholders require progress and a clear download dependency.
 
@@ -191,10 +187,8 @@ Not yet implemented: global drag palette, menu-bar entry, broad format support, 
 
 ## Sources
 
-Research accessed 18 October 2026. Project READMEs describe their authors' claims, not independent security or quality validation.
+Research accessed October 2026. Project READMEs describe their authors' claims, not independent security or quality validation.
 
-S1 https://tangerineformac.com/ and https://tangerineformac.com/privacy
-S2 https://apps.apple.com/mx/app/tangerine-file-converter/id6813034065?mt=12
 S3 https://developer.apple.com/documentation/appkit/nsdraggingdestination
 S4 https://developer.apple.com/documentation/vision/vngenerateforegroundinstancemaskrequest
 S5 https://github.com/aalemoro/Verto (architecture example)

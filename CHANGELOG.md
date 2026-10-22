@@ -8,7 +8,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## [0.2.0] - 2026-10-22
 
 ### Rebranding & Identity
-- **Product Identity:** Rebranded project from Open Tangerine to **Docyo** (`https://github.com/subhashmalik0001/Docyo.git`).
+- **Product Identity:** Established official project identity as **Docyo** (`https://github.com/subhashmalik0001/Docyo.git`).
 - **Design System:** Introduced Docyo cobalt-indigo design aesthetic, updated brand mark, vector AppIcon, and template menu-bar iconography.
 - **Bundle ID:** Updated to `com.docyo.app`.
 

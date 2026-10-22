@@ -22,7 +22,6 @@ release-assets/
 # Logs & Diagnostics
 *.log
 Docyo-Diagnostics/
-OpenTangerine-Diagnostics/
 
 # Secrets & Certificates
 .env
