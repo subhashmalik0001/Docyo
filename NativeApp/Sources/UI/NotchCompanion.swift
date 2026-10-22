@@ -1,77 +1,88 @@
 import SwiftUI
 
-/// Original citrus character. No agent hooks, third-party mascot assets or background monitor.
-struct CitrusCompanion: View {
+/// 3D Grape Penguin avatar companion below the notch.
+struct NotchCompanion: View {
     @ObservedObject var state = CompanionState.shared
     private var working: Bool { state.phase == .processing }
     private var failed: Bool { state.phase == .failed }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 12, paused: ![.processing, .received, .delivering].contains(state.phase) || reduceMotion)) { timeline in
             let phase = !reduceMotion ? timeline.date.timeIntervalSinceReferenceDate * 5 : 0
             let bob = reduceMotion ? 0 : state.phase == .received ? -abs(sin(phase)) * 6 : state.phase == .delivering ? -abs(sin(phase)) * 3 : working ? sin(phase) * 2 : 0
+
             ZStack {
+                // Interactive document float on file received / delivered
                 if state.phase == .received || state.phase == .delivering {
-                    Image(systemName: "doc.fill").font(.system(size: 16)).foregroundStyle(.white)
+                    Image(systemName: "doc.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1.5)
                         .offset(x: state.phase == .received ? -24 : 24, y: bob - 4)
                 }
+
+                // Success sparkles
                 if state.phase == .success {
-                    Image(systemName: "sparkles").font(.system(size: 14)).foregroundStyle(.yellow).offset(x: 25, y: -20)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                        .shadow(color: .orange.opacity(0.5), radius: 4)
+                        .offset(x: 22, y: -20)
                 }
-                Ellipse().fill(.orange.opacity(0.16)).frame(width: 46, height: 8).offset(y: 24)
+
+                // Soft ground shadow beneath avatar
+                Ellipse()
+                    .fill(Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.22))
+                    .frame(width: 44, height: 7)
+                    .offset(y: 24)
+
+                // 3D Grape Penguin Vinyl Toy Avatar
                 ZStack {
-                    Circle().fill(LinearGradient(colors: [.yellow, Theme.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 42, height: 42)
-                    Ellipse().fill(.green).frame(width: 17, height: 8).rotationEffect(.degrees(-35)).offset(x: 9, y: -24)
-                    HStack(spacing: 8) {
-                        eye
-                        eye
-                    }.offset(x: state.phase == .watching ? state.gaze * 4 : 0, y: -3)
-                    HStack(spacing: 24) {
-                        Ellipse().fill(Color.pink.opacity(0.55)).frame(width: 8, height: 4)
-                        Ellipse().fill(Color.pink.opacity(0.55)).frame(width: 8, height: 4)
-                    }.offset(y: 5)
-                    if state.phase == .received {
-                        Ellipse().fill(Color(red: 0.3, green: 0.1, blue: 0.05)).frame(width: 7, height: 9).offset(y: 10)
-                    } else {
-                        Path { path in
-                            path.move(to: CGPoint(x: 16, y: failed ? 32 : 28))
-                            path.addQuadCurve(to: CGPoint(x: 28, y: failed ? 32 : 28),
-                                              control: CGPoint(x: 22, y: failed ? 24 : 38))
-                        }.stroke(Color(red: 0.3, green: 0.1, blue: 0.05), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                        .frame(width: 44, height: 44)
-                    }
+                    // Real 3D WebGL Three.js Avatar from avtar.html with cursor gaze tracking
+                    Avatar3DView(allowsInteraction: true, transparentBackground: true, gaze: CGPoint(x: state.gaze, y: 0))
+                        .frame(width: 52, height: 52)
+                        .shadow(color: Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.28), radius: 6, x: 0, y: 3)
+
+                    // Processing gear overlay
                     if working {
-                        Image(systemName: "gearshape.fill").font(.system(size: 12)).foregroundStyle(.white.opacity(0.85))
-                            .rotationEffect(.degrees(reduceMotion ? 0 : phase * 30)).offset(x: 26, y: 15)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .shadow(color: .black.opacity(0.4), radius: 2)
+                            .rotationEffect(.degrees(reduceMotion ? 0 : phase * 30))
+                            .offset(x: 18, y: 15)
                     }
-                    Capsule().fill(.white.opacity(0.55)).frame(width: 5, height: 10).rotationEffect(.degrees(35)).offset(x: -13, y: 8)
+
+                    // Failure indicator
+                    if failed {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.red)
+                            .shadow(color: .black.opacity(0.3), radius: 2)
+                            .offset(x: 18, y: 15)
+                    }
+
+                    // Cancelled indicator
+                    if state.phase == .cancelled {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .offset(x: 18, y: 15)
+                    }
                 }
-                .offset(y: bob)
+                .offset(x: state.phase == .watching ? state.gaze * 3 : 0, y: bob)
                 .rotationEffect(.degrees(working && !reduceMotion ? sin(phase / 2) * 4 : 0))
             }
-        }.frame(width: 66, height: 64)
+        }
+        .frame(width: 66, height: 64)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: state.phase)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: state.gaze)
         .accessibilityHidden(true)
     }
-    @ViewBuilder private var eye: some View {
-        if state.phase == .success || state.phase == .delivering {
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: 6))
-                path.addQuadCurve(to: CGPoint(x: 9, y: 6), control: CGPoint(x: 4.5, y: -2))
-            }.stroke(.black.opacity(0.85), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
-                .frame(width: 9, height: 10)
-        } else {
-            ZStack(alignment: .topLeading) {
-                Ellipse().fill(Color(red: 0.25, green: 0.09, blue: 0.04))
-                Circle().fill(.white).frame(width: 3, height: 3).offset(x: 1.5, y: 1.5)
-                Circle().fill(.white.opacity(0.5)).frame(width: 1.5, height: 1.5).offset(x: 5, y: 6)
-            }.frame(width: 8, height: state.phase == .cancelled ? 4 : failed ? 7 : 11)
-        }
-    }
-
 }
+
+typealias CitrusCompanion = NotchCompanion
 
 struct NotchJobRow: View {
     @ObservedObject var job: Job

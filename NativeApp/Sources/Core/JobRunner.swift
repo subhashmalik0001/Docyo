@@ -435,7 +435,7 @@ struct JobPillView: View {
     private var failed: Bool { presentation.jobs.contains { if case .failed = $0.status { return true }; return false } }
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            CitrusCompanion()
+            NotchCompanion()
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     Text(presentation.jobs.isEmpty ? "READY WHEN YOU ARE" : companion.caption.uppercased())
@@ -478,6 +478,15 @@ struct JobPillView: View {
             }
         }
         .onHover { runner.hoverResults($0) }
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location):
+                let nx = max(-1.0, min(1.0, (location.x - 180) / 180))
+                companion.watch(direction: nx)
+            case .ended:
+                companion.watch(direction: 0)
+            }
+        }
         .mask(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: presentation.expanded ? 24 : 10, bottomTrailingRadius: presentation.expanded ? 24 : 10, topTrailingRadius: 0)
                 .frame(width: presentation.expanded ? 360 : min(360, collapsedWidth),
@@ -575,25 +584,31 @@ struct JobCardView: View {
     @ObservedObject var job: Job
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text(job.title)
-                    .font(.system(size: 15, weight: .semibold))
+        HStack(alignment: .center, spacing: 12) {
+            Avatar3DView(allowsInteraction: true, transparentBackground: true)
+                .frame(width: 36, height: 36)
+                .shadow(color: Color(red: 0.48, green: 0.36, blue: 1.0).opacity(0.25), radius: 4, x: 0, y: 2)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text(job.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    trailing
+                }
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-                Spacer(minLength: 0)
-                trailing
-            }
-            Text(subtitle)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if job.status == .done && !job.outputs.isEmpty {
-                JobOutputActions(job: job)
-            } else {
-                ProgressView(value: fraction)
-                    .progressViewStyle(.linear)
-                    .controlSize(.small)
+                    .truncationMode(.middle)
+                if job.status == .done && !job.outputs.isEmpty {
+                    JobOutputActions(job: job)
+                } else {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .controlSize(.small)
+                }
             }
         }
     }

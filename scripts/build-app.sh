@@ -17,14 +17,19 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleShortVersionString</key><string>0.2.0</string>
 <key>CFBundleVersion</key><string>11</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
-<key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
 mkdir -p "$app/Contents/Resources"
+cp docs/assets/avatar.png "$app/Contents/Resources/avatar.png"
+cp avtar.html "$app/Contents/Resources/avatar.html"
 xcrun swiftc -module-cache-path "$PWD/.build/module-cache" NativeApp/Sources/UI/BrandArtwork.swift scripts/make-icon.swift -o .build/make-icon
-.build/make-icon "$PWD/.build/AppIcon.iconset" "$PWD/Desktop/icon.png"
-python3 scripts/package-icon.py .build/AppIcon.iconset "$app/Contents/Resources/AppIcon.icns"
+.build/make-icon "$PWD/.build/AppIcon.iconset" "$PWD/Desktop/icon.png" "$PWD/docs/assets/social-icon.png"
+if command -v iconutil >/dev/null 2>&1; then
+  iconutil -c icns "$PWD/.build/AppIcon.iconset" -o "$app/Contents/Resources/AppIcon.icns"
+else
+  python3 scripts/package-icon.py .build/AppIcon.iconset "$app/Contents/Resources/AppIcon.icns"
+fi
 cp LICENSE "$app/Contents/Resources/GPL-3.0.txt"
 cp THIRD_PARTY_NOTICES.md "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then

@@ -212,15 +212,22 @@ struct RadialWheelView: View {
     }
 
     private var pill: some View {
-        Text(title)
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .allowsTightening(true)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .frame(maxWidth: geometry.innerRadius * 2 - 8)
-            .glassEffect(.regular, in: Capsule())
+        HStack(spacing: 6) {
+            Image(nsImage: BrandArtwork.avatarImage)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 22, height: 22)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .allowsTightening(true)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .frame(maxWidth: geometry.innerRadius * 2 - 8)
+        .glassEffect(.regular, in: Capsule())
     }
 
     private var empty: some View {

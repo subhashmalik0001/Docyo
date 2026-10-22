@@ -10,9 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DiagnosticLog.start()
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.regular)
         AppSettings.shared.applyAppearance()
-        NSApp.applicationIconImage = BrandArtwork.image(size: 256)
+        if let avatar = BrandArtwork.avatarSourceImage {
+            NSApp.applicationIconImage = avatar
+        } else {
+            NSApp.applicationIconImage = BrandArtwork.image(size: 512)
+        }
         installStatusItem()
         UpdateChecker.shared.onAvailable = { [weak self] version in
             self?.updateMenuItem?.title = "Download update \(version) from website…"

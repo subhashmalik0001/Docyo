@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsTab: String, CaseIterable, Identifiable {
+    case companion
     case general
     case appearance
     case conversion
@@ -12,6 +13,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .companion: return "3D Avatar"
         case .general: return "General"
         case .appearance: return "Appearance"
         case .conversion: return "Formats"
@@ -21,6 +23,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .companion: return "cube.transparent.fill"
         case .general: return "gearshape"
         case .appearance: return "paintbrush"
         case .conversion: return "arrow.triangle.2.circlepath"
@@ -31,13 +34,15 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 @MainActor
 final class SettingsTabModel: ObservableObject {
-    @Published var tab: SettingsTab = .general
+    @Published var tab: SettingsTab = .companion
 }
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @ObservedObject var model: SettingsTabModel
     @State private var ffmpegHealth: FFmpeg.Health = .missing
+    @State private var companionGaze: CGPoint = .zero
+    @State private var isTestingNotch = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -121,6 +126,7 @@ struct SettingsView: View {
                 ZStack {
                     Form {
                         switch model.tab {
+                        case .companion: companionView
                         case .general: general
                         case .appearance: appearance
                         case .conversion: conversion
@@ -148,6 +154,7 @@ struct SettingsView: View {
 
     private var tabDescription: String {
         switch model.tab {
+        case .companion: return "Interactive 3D vinyl toy companion in your app and notch."
         case .general: return "A few thoughtful defaults. A smoother day."
         case .appearance: return "Make your workspace feel like yours."
         case .conversion: return "Find the balance between detail and size."
@@ -219,6 +226,120 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder private var companionView: some View {
+        Section {
+            VStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.15, green: 0.13, blue: 0.28),
+                                    Color(red: 0.08, green: 0.07, blue: 0.16)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(height: 280)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [Theme.accent.opacity(0.35), Color.clear],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+
+                    Avatar3DView(allowsInteraction: true, transparentBackground: true, gaze: companionGaze)
+                        .frame(width: 260, height: 260)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cursorarrow.rays")
+                            .font(.system(size: 10))
+                        Text("Tracks cursor · Drag to spin · Scroll to zoom")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(12)
+                }
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        if let url = BrandArtwork.avatarHTMLURL {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        Label("Web Viewer", systemImage: "arrow.up.right.square")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(12)
+                }
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let pt):
+                        let nx = max(-1.0, min(1.0, (pt.x - 260) / 200))
+                        let ny = max(-1.0, min(1.0, (pt.y - 140) / 140))
+                        companionGaze = CGPoint(x: nx, y: ny)
+                    case .ended:
+                        companionGaze = .zero
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        JobRunner.shared.watchWheel(label: "3D Companion Active", direction: 0)
+                        isTestingNotch = true
+                    } label: {
+                        Label(isTestingNotch ? "Notch Active" : "Test in Notch", systemImage: "macbook.and.ipad")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+
+                    if isTestingNotch {
+                        Button("Dismiss Notch") {
+                            JobRunner.shared.dismissAll()
+                            isTestingNotch = false
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Spacer()
+
+                    Text("Grape Penguin (Vinyl Toy)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 4)
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text("3D Interactive Character")
+        } footer: {
+            Text("Your 3D companion is powered by Three.js WebGL and lives both in this app and beneath your MacBook notch.")
+        }
+
+        Section("Notch Companion Settings") {
+            Picker("Surface", selection: $settings.notchSurface) {
+                ForEach(NotchSurface.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Display Mode", selection: $settings.progressStyle) {
+                ForEach(ProgressStyle.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     @ViewBuilder private var appearance: some View {
         Section("Theme") {
             Picker("Theme", selection: $settings.appearanceMode) {
@@ -241,7 +362,7 @@ struct SettingsView: View {
         } footer: {
             Text(settings.progressStyle == .card
                  ? "A floating card in the top right corner with the file name and percentage."
-                 : "An animated citrus companion below the notch, with file progress and results.")
+                 : "An animated 3D companion below the notch, with file progress and results.")
         }
     }
 
@@ -322,6 +443,23 @@ struct SettingsView: View {
                 }
                 .font(.system(size: 13))
                 .padding(.top, 2)
+                Button {
+                    if let url = Bundle.main.url(forResource: "avatar", withExtension: "html") {
+                        NSWorkspace.shared.open(url)
+                    } else {
+                        let fallback = URL(fileURLWithPath: "docs/avatar.html")
+                        NSWorkspace.shared.open(fallback)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "cube.transparent")
+                        Text("View 3D Interactive Avatar")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
                 Text("GPL-3.0-only · Authored by Subhash Malik.\nLocal-first document, media & file converter.")
                     .font(.system(size: 10)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).lineSpacing(3)
