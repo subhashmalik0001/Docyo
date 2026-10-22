@@ -1,0 +1,6 @@
+# GitHub project Pages serves this file below /Docyo/.
+# Standard crawlers use /robots.txt at the HOST root instead.
+User-agent: *
+Allow: /
+
+Sitemap: https://subhashmalik0001.github.io/Docyo/sitemap.xml

@@ -1,0 +1,25 @@
+'use strict';
+async function checkRelease(){
+  const label=document.getElementById('release-label');if(!label)return;
+  const status=document.getElementById('version-status');const download=document.getElementById('download-link');
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8000);
+  const versionApi=window.DocyoVersion;
+  try{
+    const response=await fetch('https://api.github.com/repos/subhashmalik0001/Docyo/releases/latest',{signal:controller.signal,cache:'no-store',headers:{Accept:'application/vnd.github+json'}});
+    if(!response.ok)throw new Error('Release unavailable');
+    const release=await response.json();
+    const asset=versionApi.packageFor(release);
+    if(!asset)throw new Error('No compatible package');
+    label.textContent=`${release.tag_name} · Manual installation`;
+    download.href=asset.browser_download_url;
+    download.textContent=`Download ${release.tag_name} for Mac ↓`;
+    document.getElementById('release-notes').href=`https://github.com/subhashmalik0001/Docyo/releases/tag/${release.tag_name}`;
+    const installed=new URLSearchParams(location.search).get('version');
+    const result=versionApi.compare(release.tag_name,installed);
+    status.textContent=result===0?`You’re on the latest release (${installed}). No update needed.`:result===1?`Update available: ${installed} → ${release.tag_name}. Download it below and replace your old copy.`:result===-1?`Your version (${installed}) is newer than the published release. No update needed.`:'The latest published release is ready to download. Your installed version was not supplied.';
+  }catch{
+    label.textContent='Latest release could not be checked';
+    status.textContent='We couldn’t verify the latest version. Browse GitHub releases below.';
+  }finally{clearTimeout(timeout);}
+}
+checkRelease();

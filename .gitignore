@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift & macOS build products
+.build/
+dist/
+DerivedData/
+
+# Python & Qt build products
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+Desktop/dist/
+Desktop/build/
+release-assets/
+
+# Logs & Diagnostics
+*.log
+Docyo-Diagnostics/
+OpenTangerine-Diagnostics/
+
+# Secrets & Certificates
+.env
+.env.*
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
