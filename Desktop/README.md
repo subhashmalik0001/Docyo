@@ -1,19 +1,25 @@
 # Docyo — Windows and Linux Desktop 0.2.0
 
-This is a local-first cross-platform desktop edition of Docyo.
+This is the local-first cross-platform desktop edition of **Docyo**, featuring the **Interactive Radial Converter Wheel**, **Floating Companion Wheel**, and the **3D Grape Penguin Vinyl Toy Avatar**.
 No account required, no telemetry, no cloud uploads, no background daemons.
 
-## Install
+## Install & Run on Windows
 
-- **Windows 10/11 x64:** Extract the entire Windows ZIP into a local folder. Run `Docyo.exe` inside it. Keep `_internal` alongside it. This trial build is unsigned; Windows SmartScreen may present an unknown publisher warning.
-- **Linux x64:** Ubuntu 24.04 or compatible glibc 2.39+ desktop. Extract the `.tar.gz`, then execute `Docyo`. Standard desktop libraries (X11/Wayland, libegl1, libopengl0) are required. No root installation is needed.
-- To uninstall, simply delete the extracted folder.
-- You can verify package integrity with the companion `.sha256` checksum file.
+1. Download `Docyo-0.2.0-Windows-x64.zip`.
+2. Extract the entire ZIP into a folder of your choice.
+3. Double-click `Docyo.exe`.
+   - **Windows SmartScreen Security Note:** Because this open-source build is unsigned, Windows may display *"Windows protected your PC"* or *"Unknown publisher"*.
+   - Click **More info** → **Run anyway**.
+   - Docyo runs 100% locally on your machine with zero cloud connectivity.
+4. Keep the `_internal/` directory alongside `Docyo.exe`.
+5. To uninstall, simply delete the extracted folder.
 
-## Features
+## Key Features
 
-Drop local files **into the app window**, or click **Add files**. Choose a target format and click **Convert files**. Files are processed sequentially; a failure on one item does not block other files.
-
+- **Interactive Radial Converter Wheel:** Drop files directly onto any format wedge (PNG, JPEG, WEBP, PDF, Merge PDFs, MP4, MP3, Extract text) for instant conversion, or click any wedge to select that target format.
+- **Floating Companion Wheel:** Click **🎡 Floating Wheel** in the header to summon a transparent, always-on-top desktop companion wheel. Move it anywhere on your desktop and drag files from File Explorer directly onto it.
+- **3D Avatar Studio:** Click **🌟 3D Avatar** in the header or the center avatar disc to launch the hardware-accelerated 3D Grape Penguin Vinyl Toy studio in your default browser with real-time 360° mouse tracking.
+- **Batch Queue View:** Switch to the **📋 Batch Queue** tab for detailed file lists, output destination tracking, and batch status.
 - **Images:** PNG, JPEG, WebP, TIFF, and BMP output; PNG, JPEG, WebP, TIFF, BMP, and AVIF input. JPEG transparency is flattened against white. Supports maximum-dimension resizing and rotation. Animated images and multipage files are safely rejected instead of corrupting frames.
 - **PDFs:** Image to PDF, merge multiple PDFs, split into single-page documents, and extract text.
 - **Media:** Transcode MP4, WebM, MP3, WAV, FLAC, and OGG using a local, user-provided FFmpeg executable.
@@ -26,13 +32,13 @@ Drop local files **into the app window**, or click **Add files**. Choose a targe
 - Non-destructive processing: original input files are never overwritten or altered. Unique collision-resistant filenames are generated for all outputs.
 - Atomic publication on the same filesystem ensures partially written files never overwrite existing files.
 
-## Build and Test
+## Build and Test Locally
 
 Python 3.12+ recommended:
 
 ```sh
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
 python app.py
