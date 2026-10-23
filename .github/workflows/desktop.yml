@@ -62,12 +62,8 @@ jobs:
           pattern: desktop-*
           path: release-assets
           merge-multiple: true
-      - name: Publish only after both platforms pass
+      - name: Publish or update desktop release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view desktop-v0.2.0 >/dev/null 2>&1; then
-            echo 'Version already exists; never replace published binaries silently.'
-            exit 0
-          fi
-          gh release create desktop-v0.2.0 release-assets/* --target "$GITHUB_SHA" --prerelease --title 'Docyo 0.2.0 · Windows and Linux Desktop' --notes-file Desktop/RELEASE.md
+          gh release upload desktop-v0.2.0 release-assets/* --clobber || gh release create desktop-v0.2.0 release-assets/* --target "$GITHUB_SHA" --prerelease --title 'Docyo 0.2.0 · Windows and Linux Desktop' --notes-file Desktop/RELEASE.md

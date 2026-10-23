@@ -581,6 +581,8 @@ class Window(QMainWindow):
         self.update_file_banner()
 
     def update_file_banner(self):
+        if not hasattr(self, 'wheel_hint') or not hasattr(self, 'convert'):
+            return
         if not self.paths:
             self.wheel_hint.setText('Drop files onto any format wedge for instant conversion, or click a wedge to select.')
             self.wheel_hint.setStyleSheet('color: #b0a6d6; font-size: 12px; text-align: center;')
