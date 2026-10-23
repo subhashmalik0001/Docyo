@@ -13,7 +13,7 @@ from PySide6.QtGui import (QPainter, QBrush, QPen, QColor, QRadialGradient,
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QPushButton, QFileDialog,
                              QComboBox, QListWidget, QProgressBar, QSpinBox,
-                             QMessageBox, QAbstractItemView, QTabWidget)
+                             QMessageBox, QAbstractItemView, QTabWidget, QCheckBox)
 from engine import VERSION, OPERATIONS, source_file
 from runner import run_job, Cancelled
 
@@ -363,7 +363,7 @@ class FloatingRadialWheelWindow(QWidget):
             event.accept()
 
 class Window(QMainWindow):
-    def __init__(self):
+    def __init__(self, initial_paths=None, open_wheel_mode=False):
         super().__init__()
         self.paths = []
         self.outputs = []
@@ -417,6 +417,11 @@ class Window(QMainWindow):
         self.btn_avatar.clicked.connect(self.open_avatar_studio)
         header_row.addWidget(self.btn_avatar)
 
+        self.btn_win_menu = QPushButton('📌 Explorer Menu')
+        self.btn_win_menu.setToolTip('Add Docyo to Windows Right-Click and Send-To menus')
+        self.btn_win_menu.clicked.connect(self.setup_windows_integration)
+        header_row.addWidget(self.btn_win_menu)
+
         self.btn_limits = QPushButton('Supported features')
         self.btn_limits.clicked.connect(self.show_limits)
         header_row.addWidget(self.btn_limits)
@@ -430,13 +435,26 @@ class Window(QMainWindow):
         # Tab 1: Radial Wheel
         tab_wheel = QWidget()
         wheel_layout = QVBoxLayout(tab_wheel)
-        wheel_layout.setContentsMargins(10, 10, 10, 10)
-        wheel_layout.setSpacing(8)
+        wheel_layout.setContentsMargins(10, 8, 10, 8)
+        wheel_layout.setSpacing(6)
 
-        wheel_hint = QLabel('Drop files onto any format wedge for instant conversion, or click a wedge to select.')
-        wheel_hint.setStyleSheet('color: #b0a6d6; font-size: 12px; text-align: center;')
-        wheel_hint.setAlignment(Qt.AlignCenter)
-        wheel_layout.addWidget(wheel_hint)
+        self.wheel_hint = QLabel('Drop files onto any format wedge for instant conversion, or click a wedge to select.')
+        self.wheel_hint.setStyleSheet('color: #b0a6d6; font-size: 12px; text-align: center;')
+        self.wheel_hint.setAlignment(Qt.AlignCenter)
+        wheel_layout.addWidget(self.wheel_hint)
+
+        wheel_top_row = QHBoxLayout()
+        wheel_top_row.addStretch()
+        self.chk_instant = QCheckBox('⚡ Instant convert on wheel click')
+        instant_pref = self.settings.value('auto_convert_on_click', True)
+        if isinstance(instant_pref, str):
+            instant_pref = (instant_pref.lower() == 'true')
+        self.chk_instant.setChecked(bool(instant_pref))
+        self.chk_instant.toggled.connect(lambda v: self.settings.setValue('auto_convert_on_click', v))
+        self.chk_instant.setToolTip('When checked, clicking any format wedge on the wheel converts your loaded file immediately.')
+        wheel_top_row.addWidget(self.chk_instant)
+        wheel_top_row.addStretch()
+        wheel_layout.addLayout(wheel_top_row)
 
         self.wheel = RadialWheelWidget(wheel_radius=150, inner_radius=56)
         self.wheel.slice_clicked.connect(self.on_wheel_slice_clicked)
@@ -540,6 +558,18 @@ class Window(QMainWindow):
 
         self.update_options()
 
+        # Handle initial paths passed via command line (e.g. dragged onto exe or Open With)
+        if initial_paths:
+            self.add_paths(initial_paths)
+            self.tabs.setCurrentIndex(0)
+            if len(self.paths) == 1:
+                self.status.setText(f'Loaded "{Path(self.paths[0]).name}". Click any format on the wheel to convert!')
+            else:
+                self.status.setText(f'Loaded {len(self.paths)} files. Click any format on the wheel to convert!')
+
+        if open_wheel_mode:
+            QTimer.singleShot(150, self.open_floating_wheel)
+
     def update_options(self):
         current = self.target.currentText()
         enabled = current in ['PNG', 'JPEG', 'WEBP', 'TIFF', 'BMP', 'Image → PDF']
@@ -548,14 +578,36 @@ class Window(QMainWindow):
         self.wheel.set_selected_target(current)
         if self.floating_wheel:
             self.floating_wheel.wheel.set_selected_target(current)
+        self.update_file_banner()
+
+    def update_file_banner(self):
+        if not self.paths:
+            self.wheel_hint.setText('Drop files onto any format wedge for instant conversion, or click a wedge to select.')
+            self.wheel_hint.setStyleSheet('color: #b0a6d6; font-size: 12px; text-align: center;')
+            self.convert.setText('Convert files')
+        elif len(self.paths) == 1:
+            name = Path(self.paths[0]).name
+            self.wheel_hint.setText(f'📁 File ready: "{name}" — Click any format on the wheel to change & convert!')
+            self.wheel_hint.setStyleSheet('color: #ffffff; background: rgba(123, 92, 255, 0.28); border: 1px solid #7b5cff; border-radius: 6px; padding: 6px 12px; font-weight: bold; font-size: 12px;')
+            self.convert.setText(f'Convert to {self.target.currentText()} ➔')
+        else:
+            self.wheel_hint.setText(f'📁 {len(self.paths)} files ready — Click any format on the wheel to change & convert!')
+            self.wheel_hint.setStyleSheet('color: #ffffff; background: rgba(123, 92, 255, 0.28); border: 1px solid #7b5cff; border-radius: 6px; padding: 6px 12px; font-weight: bold; font-size: 12px;')
+            self.convert.setText(f'Convert to {self.target.currentText()} ➔')
 
     def on_wheel_slice_clicked(self, target_name):
         if target_name in OPERATIONS:
             self.target.setCurrentText(target_name)
             self.update_options()
             if self.paths:
-                self.status.setText(f'Target: {target_name}. Click "Convert files" to begin.')
+                self.convert.setText(f'Convert to {target_name} ➔')
+                if self.chk_instant.isChecked() and not (self.batch and self.batch.isRunning()):
+                    self.status.setText(f'Converting to {target_name}…')
+                    self.start()
+                else:
+                    self.status.setText(f'Target: {target_name}. Click "Convert to {target_name}" to begin.')
             else:
+                self.convert.setText('Convert files')
                 self.status.setText(f'Target: {target_name}. Drop files directly onto the wheel to convert.')
 
     def on_wheel_slice_dropped(self, target_name, paths):
@@ -580,6 +632,54 @@ class Window(QMainWindow):
         else:
             QDesktopServices.openUrl(QUrl(WEBSITE))
 
+    def setup_windows_integration(self):
+        """Register Docyo in Windows Explorer Right-Click Menu and Send-To menu."""
+        if os.name != 'nt':
+            QMessageBox.information(self, 'Windows Integration',
+                'This feature registers Docyo in the Windows Explorer Right-Click and Send-To menus.\n'
+                'On macOS / Linux, drag files into the app window or pass via command line.')
+            return
+        try:
+            exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
+            sendto_ok = False
+            appdata = os.environ.get('APPDATA')
+            if appdata:
+                sendto = Path(appdata) / 'Microsoft' / 'Windows' / 'SendTo'
+                if sendto.exists():
+                    shortcut = sendto / 'Docyo.bat'
+                    shortcut.write_text(f'@start "" "{exe}" %*\n')
+                    sendto_ok = True
+
+            reg_ok = False
+            try:
+                import winreg
+                key_path = r"Software\Classes\*\shell\Docyo"
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "Convert with Docyo Wheel")
+                    icon_path = get_asset_path('icon.png')
+                    if icon_path.exists():
+                        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, str(icon_path))
+                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path + r"\command") as key:
+                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, f'"{exe}" "%1"')
+                reg_ok = True
+            except Exception:
+                pass
+
+            msg = []
+            if reg_ok:
+                msg.append('• Right-Click Context Menu: "Convert with Docyo Wheel" enabled!')
+            if sendto_ok:
+                msg.append('• Send-To Menu: "Send to -> Docyo" enabled!')
+
+            if msg:
+                QMessageBox.information(self, 'Windows Integration Active',
+                    'Successfully configured Windows Explorer integration:\n\n' + '\n'.join(msg) +
+                    '\n\nYou can now select ANY file in Windows, right-click, and open the Docyo Wheel directly!')
+            else:
+                QMessageBox.warning(self, 'Notice', 'Could not configure menu shortcuts. You can still drag files onto Docyo.exe or use Open With.')
+        except Exception as e:
+            QMessageBox.warning(self, 'Integration Notice', f'Integration details: {e}')
+
     def add_paths(self, paths):
         if self.batch and self.batch.isRunning():
             return
@@ -595,7 +695,8 @@ class Window(QMainWindow):
                 self.list.addItem(Path(p).name)
             except Exception as e:
                 errors.append(str(e))
-        self.status.setText('; '.join(errors[:3]) if errors else f'{len(self.paths)} files ready.')
+        self.update_file_banner()
+        self.status.setText('; '.join(errors[:3]) if errors else f'{len(self.paths)} file(s) ready.')
 
     def pick(self):
         self.add_paths(QFileDialog.getOpenFileNames(self, 'Select files')[0])
@@ -605,6 +706,7 @@ class Window(QMainWindow):
         self.list.clear()
         self.outputs = []
         self.open.setEnabled(False)
+        self.update_file_banner()
         self.status.setText('Ready.')
 
     def choose_folder(self):
@@ -625,6 +727,7 @@ class Window(QMainWindow):
             'PDF: image to PDF, merge (up to 200 pages), split and extract text.\n\n'
             'Media: MP4/WebM/MP3/WAV/FLAC/Ogg using a separately selected FFmpeg.\n\n'
             'Radial Wheel & Floating Wheel: Fast one-drop conversion onto format wedges.\n\n'
+            'Windows Integration: Right-click any file -> "Convert with Docyo Wheel" or drag files directly onto Docyo.exe.\n\n'
             '3D Avatar Studio: Interactive 3D Grape Penguin Vinyl Toy viewer.')
 
     def start(self):
@@ -753,6 +856,22 @@ QComboBox, QSpinBox {
 QComboBox:focus, QSpinBox:focus {
     border: 1px solid #7b5cff;
 }
+QCheckBox {
+    color: #d0c8f5;
+    spacing: 7px;
+    font-size: 12px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(123, 92, 255, 0.6);
+    background: #191629;
+}
+QCheckBox::indicator:checked {
+    background: #7b5cff;
+    border: 1px solid #9a82ff;
+}
 QListWidget {
     background-color: #12101e;
     color: #f1effa;
@@ -783,7 +902,19 @@ def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     app.setStyleSheet(DARK_STYLESHEET)
-    window = Window()
+
+    # Process command line arguments (e.g. file paths passed by Windows Explorer or Open With)
+    cli_files = []
+    open_wheel = False
+    for arg in sys.argv[1:]:
+        if arg == '--wheel':
+            open_wheel = True
+        elif not arg.startswith('--'):
+            p = Path(arg)
+            if p.exists():
+                cli_files.append(str(p.resolve()))
+
+    window = Window(initial_paths=cli_files, open_wheel_mode=open_wheel)
     window.show()
     if '--smoke-test' in sys.argv:
         QTimer.singleShot(400, app.quit)

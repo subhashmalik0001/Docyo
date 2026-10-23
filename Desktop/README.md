@@ -14,6 +14,15 @@ No account required, no telemetry, no cloud uploads, no background daemons.
 4. Keep the `_internal/` directory alongside `Docyo.exe`.
 5. To uninstall, simply delete the extracted folder.
 
+## Opening & Converting Files on Windows
+
+You can open files with Docyo in any of these quick ways:
+- **Drag onto Docyo.exe:** Drag any file or group of files directly onto the `Docyo.exe` icon in Windows File Explorer. Docyo launches immediately with the **Radial Converter Wheel** loaded and ready.
+- **Right-Click "Open With":** Right-click any file in Windows Explorer → **Open with** → Choose **Docyo.exe**.
+- **Windows Explorer Right-Click Menu:** Click **📌 Explorer Menu** in the Docyo header to add *"Convert with Docyo Wheel"* and *"Send to → Docyo"* to your Windows right-click menu.
+- **In-App Drag & Drop:** Drop files directly onto the wheel inside the app, or onto the **🎡 Floating Wheel** anywhere on your desktop.
+- **⚡ Instant Conversion:** With your file loaded, simply click any format wedge on the wheel (`PNG`, `JPEG`, `WEBP`, `PDF`, `Merge PDFs`, `MP4`, `MP3`, `Extract text`) to instantly convert it to that format!
+
 ## Key Features
 
 - **Interactive Radial Converter Wheel:** Drop files directly onto any format wedge (PNG, JPEG, WEBP, PDF, Merge PDFs, MP4, MP3, Extract text) for instant conversion, or click any wedge to select that target format.
