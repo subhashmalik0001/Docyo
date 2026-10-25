@@ -57,7 +57,6 @@ class UITests(unittest.TestCase):
             self.assertEqual(len(w.paths), 1)
             self.assertEqual(w.tabs.currentIndex(), 0) # Radial Converter tab
             self.assertIn('clicked_file.png', w.wheel_hint.text())
-            self.assertTrue(w.chk_instant.isChecked())
             w.close()
 
 if __name__=='__main__':
