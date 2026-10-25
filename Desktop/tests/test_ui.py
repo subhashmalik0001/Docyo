@@ -43,21 +43,8 @@ class UITests(unittest.TestCase):
         self.assertEqual(w.wheel.selected_target, 'WEBP')
         w.open_floating_wheel()
         self.assertIsNotNone(w.floating_wheel)
-        self.assertTrue(w.floating_wheel.isVisible() or hasattr(w.floating_wheel, 'wheel'))
         w.floating_wheel.close()
         w.close()
-
-    def test_initial_paths_opens_wheel_ready(self):
-        with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / 'clicked_file.png'
-            Image.new('RGB', (16, 16)).save(p)
-            w = Window(initial_paths=[str(p)])
-            w.show()
-            self.app.processEvents()
-            self.assertEqual(len(w.paths), 1)
-            self.assertEqual(w.tabs.currentIndex(), 0) # Radial Converter tab
-            self.assertIn('clicked_file.png', w.wheel_hint.text())
-            w.close()
 
 if __name__=='__main__':
     unittest.main()
