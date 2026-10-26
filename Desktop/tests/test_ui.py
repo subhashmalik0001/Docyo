@@ -11,6 +11,9 @@ class UITests(unittest.TestCase):
     def setUpClass(cls):
         cls.app=QApplication.instance() or QApplication([])
 
+    def tearDown(self):
+        self.app.processEvents()
+
     def test_queue_deduplicates_and_rejects_directory(self):
         w=Window()
         with tempfile.TemporaryDirectory() as d:
@@ -21,6 +24,7 @@ class UITests(unittest.TestCase):
             w.clear_files()
             self.assertEqual(w.list.count(),0)
         w.close()
+        w.deleteLater()
 
     def test_window_and_options(self):
         w=Window()
@@ -31,6 +35,7 @@ class UITests(unittest.TestCase):
         w.target.setCurrentText('JPEG')
         self.assertTrue(w.width.isEnabled())
         w.close()
+        w.deleteLater()
 
     def test_radial_wheel_and_floating_wheel(self):
         w=Window()
@@ -44,7 +49,9 @@ class UITests(unittest.TestCase):
         w.open_floating_wheel()
         self.assertIsNotNone(w.floating_wheel)
         w.floating_wheel.close()
+        w.floating_wheel.deleteLater()
         w.close()
+        w.deleteLater()
 
     def test_system_tray_and_hide_on_close(self):
         w = Window()
@@ -63,6 +70,7 @@ class UITests(unittest.TestCase):
             self.assertIn(str(p.resolve()), w.paths)
         w._force_quit = True
         w.close()
+        w.deleteLater()
 
     def test_autostart_helpers(self):
         from app import is_windows_autostart_enabled, set_windows_autostart

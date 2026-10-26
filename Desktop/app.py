@@ -481,11 +481,14 @@ class Window(QMainWindow):
         self.setWindowTitle('Docyo · Universal Media Suite')
         self.resize(840, 720)
 
-        self.setup_tray_icon()
-        if os.name == 'nt' and not self.settings.value('first_run_setup_done', False, type=bool):
-            self.settings.setValue('first_run_setup_done', True)
-            set_windows_autostart(True)
-            install_windows_context_menu(quiet=True)
+        if os.environ.get('QT_QPA_PLATFORM') != 'offscreen':
+            self.setup_tray_icon()
+            if os.name == 'nt' and not self.settings.value('first_run_setup_done', False, type=bool):
+                self.settings.setValue('first_run_setup_done', True)
+                set_windows_autostart(True)
+                install_windows_context_menu(quiet=True)
+        else:
+            self.tray_icon = None
 
         icon = get_asset_path('icon.png')
         if icon.exists():
