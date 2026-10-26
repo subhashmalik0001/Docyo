@@ -132,7 +132,8 @@ def try_send_to_existing_instance(server_name: str, payload: dict) -> bool:
         socket.write(data)
         socket.flush()
         socket.waitForBytesWritten(1000)
-        socket.disconnectFromServer()
+        # Allow server up to 500ms to receive and close
+        socket.waitForDisconnected(500)
         return True
     return False
 
@@ -772,7 +773,7 @@ class Window(QMainWindow):
             self.chk_autostart.blockSignals(False)
 
     def setup_tray_icon(self):
-        if not QSystemTrayIcon.isSystemTrayAvailable():
+        if os.environ.get('QT_QPA_PLATFORM') == 'offscreen' or not QSystemTrayIcon.isSystemTrayAvailable():
             self.tray_icon = None
             return
 
@@ -782,34 +783,34 @@ class Window(QMainWindow):
         self.tray_icon = QSystemTrayIcon(icon, self)
         self.tray_icon.setToolTip('Docyo • Universal Media Suite (Running in background)')
 
-        tray_menu = QMenu()
-        tray_menu.setStyleSheet(DARK_STYLESHEET)
+        self.tray_menu = QMenu(self)
+        self.tray_menu.setStyleSheet(DARK_STYLESHEET)
 
-        act_show = tray_menu.addAction('🎡 Show Converter Wheel')
+        act_show = self.tray_menu.addAction('🎡 Show Converter Wheel')
         act_show.triggered.connect(self.show_normal_and_raise)
 
-        act_float = tray_menu.addAction('🎡 Floating Companion Wheel')
+        act_float = self.tray_menu.addAction('🎡 Floating Companion Wheel')
         act_float.triggered.connect(self.open_floating_wheel)
 
-        act_avatar = tray_menu.addAction('🌟 3D Avatar Studio')
+        act_avatar = self.tray_menu.addAction('🌟 3D Avatar Studio')
         act_avatar.triggered.connect(self.open_avatar_studio)
 
-        tray_menu.addSeparator()
+        self.tray_menu.addSeparator()
 
         if os.name == 'nt':
-            self.act_tray_startup = tray_menu.addAction('🚀 Run on Windows Startup')
+            self.act_tray_startup = self.tray_menu.addAction('🚀 Run on Windows Startup')
             self.act_tray_startup.setCheckable(True)
             self.act_tray_startup.setChecked(is_windows_autostart_enabled())
             self.act_tray_startup.toggled.connect(self.on_autostart_toggled)
 
-            act_explorer = tray_menu.addAction('📌 Add to Explorer Right-Click Menu')
+            act_explorer = self.tray_menu.addAction('📌 Add to Explorer Right-Click Menu')
             act_explorer.triggered.connect(self.setup_windows_integration)
-            tray_menu.addSeparator()
+            self.tray_menu.addSeparator()
 
-        act_quit = tray_menu.addAction('❌ Quit Docyo')
+        act_quit = self.tray_menu.addAction('❌ Quit Docyo')
         act_quit.triggered.connect(self.quit_application)
 
-        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.activated.connect(self.on_tray_activated)
         self.tray_icon.show()
 
@@ -1112,10 +1113,12 @@ def main():
 
     window = Window(initial_paths=cli_files, open_wheel_mode=open_wheel)
 
+    active_ipc_connections = []
     def on_ipc_connection():
         sock = server.nextPendingConnection()
         if not sock:
             return
+        active_ipc_connections.append(sock)
         buf = bytearray()
         def on_read():
             buf.extend(sock.readAll().data())
@@ -1132,6 +1135,8 @@ def main():
                     window.handle_external_files(data.get('paths', []), data.get('wheel', False))
                 except Exception:
                     pass
+            if sock in active_ipc_connections:
+                active_ipc_connections.remove(sock)
             sock.deleteLater()
         sock.readyRead.connect(on_read)
         sock.disconnected.connect(on_disc)

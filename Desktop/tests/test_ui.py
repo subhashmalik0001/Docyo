@@ -73,19 +73,32 @@ class UITests(unittest.TestCase):
         srv = QLocalServer()
         self.assertTrue(srv.listen(test_server_name))
         received = []
+        active_socks = []
         def on_conn():
             s = srv.nextPendingConnection()
             if s:
+                active_socks.append(s)
                 def on_read():
-                    received.append(json.loads(s.readAll().data().decode('utf-8')))
-                    s.disconnectFromServer()
+                    data = s.readAll().data().decode('utf-8')
+                    try:
+                        received.append(json.loads(data))
+                        s.disconnectFromServer()
+                    except Exception:
+                        pass
+                def on_disc():
+                    if s in active_socks:
+                        active_socks.remove(s)
+                    s.deleteLater()
                 s.readyRead.connect(on_read)
+                s.disconnected.connect(on_disc)
         srv.newConnection.connect(on_conn)
 
         ok = try_send_to_existing_instance(test_server_name, {'paths': ['sample.png'], 'wheel': True})
         self.assertTrue(ok)
-        self.app.processEvents()
-        self.app.processEvents()
+        for _ in range(20):
+            self.app.processEvents()
+            if received:
+                break
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0]['paths'], ['sample.png'])
         srv.close()
