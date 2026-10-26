@@ -46,5 +46,57 @@ class UITests(unittest.TestCase):
         w.floating_wheel.close()
         w.close()
 
+    def test_system_tray_and_hide_on_close(self):
+        w = Window()
+        w.show()
+        self.app.processEvents()
+        w._force_quit = False
+        w.close()
+        self.app.processEvents()
+        self.assertFalse(w.isVisible())
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'test.png'
+            Image.new('RGB', (8, 8)).save(p)
+            w.handle_external_files([str(p)], open_wheel_mode=False)
+            self.app.processEvents()
+            self.assertTrue(w.isVisible())
+            self.assertIn(str(p.resolve()), w.paths)
+        w._force_quit = True
+        w.close()
+
+    def test_single_instance_ipc(self):
+        from PySide6.QtNetwork import QLocalServer
+        from app import try_send_to_existing_instance
+        import json
+        test_server_name = 'DocyoTestIPCUnit'
+        QLocalServer.removeServer(test_server_name)
+        srv = QLocalServer()
+        self.assertTrue(srv.listen(test_server_name))
+        received = []
+        def on_conn():
+            s = srv.nextPendingConnection()
+            if s:
+                def on_read():
+                    received.append(json.loads(s.readAll().data().decode('utf-8')))
+                    s.disconnectFromServer()
+                s.readyRead.connect(on_read)
+        srv.newConnection.connect(on_conn)
+
+        ok = try_send_to_existing_instance(test_server_name, {'paths': ['sample.png'], 'wheel': True})
+        self.assertTrue(ok)
+        self.app.processEvents()
+        self.app.processEvents()
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]['paths'], ['sample.png'])
+        srv.close()
+        QLocalServer.removeServer(test_server_name)
+
+    def test_autostart_helpers(self):
+        from app import is_windows_autostart_enabled, set_windows_autostart
+        status = is_windows_autostart_enabled()
+        self.assertIsInstance(status, bool)
+        res = set_windows_autostart(False)
+        self.assertIsInstance(res, bool)
+
 if __name__=='__main__':
     unittest.main()

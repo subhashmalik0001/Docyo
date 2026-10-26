@@ -17,11 +17,24 @@ No account required, no telemetry, no cloud uploads, no background daemons.
 ## Opening & Converting Files on Windows
 
 You can open files with Docyo in any of these quick ways:
-- **Drag onto Docyo.exe:** Drag any file or group of files directly onto the `Docyo.exe` icon in Windows File Explorer. Docyo launches immediately with the **Radial Converter Wheel** loaded and ready.
+- **Instant Background Conversion:** Docyo runs continuously in your Windows System Tray (Taskbar Notification area). When you close the window (`✕`), it hides to the tray and remains active. You never have to wait for the app to cold launch!
+- **Drag onto Docyo.exe:** Drag any file or group of files directly onto the `Docyo.exe` icon in Windows File Explorer. If Docyo is already running in the background, it immediately signals the running instance, displaying the wheel in < 0.05s!
 - **Right-Click "Open With":** Right-click any file in Windows Explorer → **Open with** → Choose **Docyo.exe**.
 - **Windows Explorer Right-Click Menu:** Click **📌 Explorer Menu** in the Docyo header to add *"Convert with Docyo Wheel"* and *"Send to → Docyo"* to your Windows right-click menu.
 - **In-App Drag & Drop:** Drop files directly onto the wheel inside the app, or onto the **🎡 Floating Wheel** anywhere on your desktop.
 - **⚡ Instant Conversion:** With your file loaded, simply click any format wedge on the wheel (`PNG`, `JPEG`, `WEBP`, `PDF`, `Merge PDFs`, `MP4`, `MP3`, `Extract text`) to instantly convert it to that format!
+
+## Always Running in Background & System Tray
+
+- **Always Active in Tray:** Docyo places a Grape Penguin icon in the Windows taskbar notification area. Clicking the icon toggles the window instantly.
+- **Run on Windows Startup:** Check **Run in background on startup** in the bottom options bar or right-click the tray icon → **🚀 Run on Windows Startup**. Docyo will silently start with Windows in the background (`--tray`).
+- **Tray Context Menu:**
+  - 🎡 Show Converter Wheel
+  - 🎡 Floating Companion Wheel
+  - 🌟 3D Avatar Studio
+  - 🚀 Run on Windows Startup
+  - 📌 Explorer Right-Click Menu
+  - ❌ Quit Docyo (fully shuts down the background process)
 
 ## Key Features
 

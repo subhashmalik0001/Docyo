@@ -3,6 +3,9 @@
 Windows and Linux desktop release for Docyo featuring the **Interactive Radial Converter Wheel**, **Floating Companion Wheel**, and the **3D Grape Penguin Vinyl Toy Avatar**.
 
 - Windows 10/11 x64 portable ZIP; Linux x64 Ubuntu 24.04 / glibc 2.39+ tar.gz.
+- **Always-On Background Resident:** Docyo stays active in the Windows System Tray so files convert instantly without cold launch delays. Closing (`✕`) minimizes to tray.
+- **Instant Single-Instance IPC:** Opening a file, right-clicking "Convert with Docyo Wheel", or launching Docyo signals the running background instance in < 0.05s.
+- **Windows Startup Auto-Run:** Optional user-level registry integration to start Docyo minimized in the tray on boot.
 - **Radial Converter Wheel:** Fast one-drop conversion onto format wedges (PNG, JPEG, WEBP, PDF, Merge PDFs, MP4, MP3, Extract text).
 - **Floating Companion Wheel:** Frameless, transparent desktop floating companion for dragging and dropping files anywhere.
 - **3D Avatar Studio:** Real-time 360° mouse-tracking 3D Grape Penguin vinyl toy studio.

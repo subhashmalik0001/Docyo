@@ -5,7 +5,7 @@ if '--worker' in sys.argv:
     from engine import worker_main
     raise SystemExit(worker_main())
 
-import os, math, threading
+import os, math, threading, json
 from pathlib import Path
 from PySide6.QtCore import Qt, QPointF, QRectF, Signal, QTimer, QUrl, QSettings, QThread
 from PySide6.QtGui import (QPainter, QBrush, QPen, QColor, QRadialGradient,
@@ -13,11 +13,14 @@ from PySide6.QtGui import (QPainter, QBrush, QPen, QColor, QRadialGradient,
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QPushButton, QFileDialog,
                              QComboBox, QListWidget, QProgressBar, QSpinBox,
-                             QMessageBox, QAbstractItemView, QTabWidget, QCheckBox)
+                             QMessageBox, QAbstractItemView, QTabWidget, QCheckBox,
+                             QSystemTrayIcon, QMenu)
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from engine import VERSION, OPERATIONS, source_file
 from runner import run_job, Cancelled
 
 WEBSITE = 'https://subhashmalik0001.github.io/Docyo/'
+SERVER_NAME = f"DocyoSingleInstance_{os.getuid() if hasattr(os, 'getuid') else os.environ.get('USERNAME', 'default')}"
 
 def get_asset_path(filename: str) -> Path:
     """Resolve asset paths in source directory and PyInstaller frozen bundle."""
@@ -30,6 +33,109 @@ def get_asset_path(filename: str) -> Path:
             return cand
     cand = Path(__file__).resolve().parent / filename
     return cand
+
+def is_windows_autostart_enabled() -> bool:
+    """Check if Docyo is registered in Windows Startup registry."""
+    if os.name != 'nt':
+        return False
+    try:
+        import winreg
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, "Docyo")
+            return bool(val)
+    except Exception:
+        return False
+
+def set_windows_autostart(enable: bool) -> bool:
+    """Register or unregister Docyo from Windows Startup registry."""
+    if os.name != 'nt':
+        return False
+    try:
+        import winreg
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            if enable:
+                exe = sys.executable if getattr(sys, 'frozen', False) else sys.executable
+                if getattr(sys, 'frozen', False):
+                    cmd = f'"{exe}" --tray'
+                else:
+                    cmd = f'"{exe}" "{Path(__file__).resolve()}" --tray'
+                winreg.SetValueEx(key, "Docyo", 0, winreg.REG_SZ, cmd)
+            else:
+                try:
+                    winreg.DeleteValue(key, "Docyo")
+                except FileNotFoundError:
+                    pass
+        return True
+    except Exception:
+        return False
+
+def install_windows_context_menu(quiet: bool = False, parent_widget=None) -> bool:
+    """Register Docyo in Windows Explorer Right-Click Menu and Send-To menu."""
+    if os.name != 'nt':
+        if not quiet and parent_widget:
+            QMessageBox.information(parent_widget, 'Windows Integration',
+                'This feature registers Docyo in the Windows Explorer Right-Click and Send-To menus.\n'
+                'On macOS / Linux, drag files into the app window or pass via command line.')
+        return False
+    try:
+        exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
+        sendto_ok = False
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            sendto = Path(appdata) / 'Microsoft' / 'Windows' / 'SendTo'
+            if sendto.exists():
+                shortcut = sendto / 'Docyo.bat'
+                shortcut.write_text(f'@start "" "{exe}" %*\n')
+                sendto_ok = True
+
+        reg_ok = False
+        try:
+            import winreg
+            key_path = r"Software\Classes\*\shell\Docyo"
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "Convert with Docyo Wheel")
+                icon_path = get_asset_path('icon.png')
+                if icon_path.exists():
+                    winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, str(icon_path))
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path + r"\command") as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, f'"{exe}" "%1"')
+            reg_ok = True
+        except Exception:
+            pass
+
+        if not quiet and parent_widget:
+            msg = []
+            if reg_ok:
+                msg.append('• Right-Click Context Menu: "Convert with Docyo Wheel" enabled!')
+            if sendto_ok:
+                msg.append('• Send-To Menu: "Send to -> Docyo" enabled!')
+            if msg:
+                QMessageBox.information(parent_widget, 'Windows Integration Active',
+                    'Successfully configured Windows Explorer integration:\n\n' + '\n'.join(msg) +
+                    '\n\nYou can now select ANY file in Windows, right-click, and open the Docyo Wheel directly!')
+            else:
+                QMessageBox.warning(parent_widget, 'Notice', 'Could not configure menu shortcuts.')
+        return reg_ok or sendto_ok
+    except Exception as e:
+        if not quiet and parent_widget:
+            QMessageBox.warning(parent_widget, 'Integration Notice', f'Integration details: {e}')
+        return False
+
+def try_send_to_existing_instance(server_name: str, payload: dict) -> bool:
+    """Send files/command to an existing running Docyo instance over local socket."""
+    socket = QLocalSocket()
+    socket.connectToServer(server_name)
+    if socket.waitForConnected(400):
+        data = json.dumps(payload).encode('utf-8')
+        socket.write(data)
+        socket.flush()
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        return True
+    return False
+
 
 class Batch(QThread):
     result = Signal(int, str, list)
@@ -370,8 +476,16 @@ class Window(QMainWindow):
         self.batch = None
         self.floating_wheel = None
         self.settings = QSettings('Docyo', 'Docyo Desktop')
+        self._force_quit = (os.environ.get('QT_QPA_PLATFORM') == 'offscreen')
+        self._tray_notified = False
         self.setWindowTitle('Docyo · Universal Media Suite')
         self.resize(840, 720)
+
+        self.setup_tray_icon()
+        if os.name == 'nt' and not self.settings.value('first_run_setup_done', False, type=bool):
+            self.settings.setValue('first_run_setup_done', True)
+            set_windows_autostart(True)
+            install_windows_context_menu(quiet=True)
 
         icon = get_asset_path('icon.png')
         if icon.exists():
@@ -548,6 +662,14 @@ class Window(QMainWindow):
         bottom_row = QHBoxLayout()
         bottom_row.addWidget(QLabel(f'Docyo · GPL-3.0-only · v{VERSION} · Local-first processing'))
         bottom_row.addStretch()
+
+        if os.name == 'nt':
+            self.chk_autostart = QCheckBox('Run in background on startup')
+            self.chk_autostart.setChecked(is_windows_autostart_enabled())
+            self.chk_autostart.toggled.connect(self.on_autostart_toggled)
+            self.chk_autostart.setToolTip('Docyo stays resident in the system tray so files convert instantly without cold launch.')
+            bottom_row.addWidget(self.chk_autostart)
+
         ff = QPushButton('Set FFmpeg…')
         ff.clicked.connect(self.set_ffmpeg)
         bottom_row.addWidget(ff)
@@ -636,51 +758,97 @@ class Window(QMainWindow):
 
     def setup_windows_integration(self):
         """Register Docyo in Windows Explorer Right-Click Menu and Send-To menu."""
-        if os.name != 'nt':
-            QMessageBox.information(self, 'Windows Integration',
-                'This feature registers Docyo in the Windows Explorer Right-Click and Send-To menus.\n'
-                'On macOS / Linux, drag files into the app window or pass via command line.')
+        install_windows_context_menu(quiet=False, parent_widget=self)
+
+    def on_autostart_toggled(self, checked: bool):
+        set_windows_autostart(checked)
+        if hasattr(self, 'act_tray_startup') and self.act_tray_startup:
+            self.act_tray_startup.blockSignals(True)
+            self.act_tray_startup.setChecked(checked)
+            self.act_tray_startup.blockSignals(False)
+        if hasattr(self, 'chk_autostart') and self.chk_autostart:
+            self.chk_autostart.blockSignals(True)
+            self.chk_autostart.setChecked(checked)
+            self.chk_autostart.blockSignals(False)
+
+    def setup_tray_icon(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon = None
             return
-        try:
-            exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
-            sendto_ok = False
-            appdata = os.environ.get('APPDATA')
-            if appdata:
-                sendto = Path(appdata) / 'Microsoft' / 'Windows' / 'SendTo'
-                if sendto.exists():
-                    shortcut = sendto / 'Docyo.bat'
-                    shortcut.write_text(f'@start "" "{exe}" %*\n')
-                    sendto_ok = True
 
-            reg_ok = False
-            try:
-                import winreg
-                key_path = r"Software\Classes\*\shell\Docyo"
-                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, "Convert with Docyo Wheel")
-                    icon_path = get_asset_path('icon.png')
-                    if icon_path.exists():
-                        winreg.SetValueEx(key, "Icon", 0, winreg.REG_SZ, str(icon_path))
-                with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path + r"\command") as key:
-                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, f'"{exe}" "%1"')
-                reg_ok = True
-            except Exception:
-                pass
+        icon_path = get_asset_path('icon.png')
+        icon = QIcon(str(icon_path)) if icon_path.exists() else self.windowIcon()
 
-            msg = []
-            if reg_ok:
-                msg.append('• Right-Click Context Menu: "Convert with Docyo Wheel" enabled!')
-            if sendto_ok:
-                msg.append('• Send-To Menu: "Send to -> Docyo" enabled!')
+        self.tray_icon = QSystemTrayIcon(icon, self)
+        self.tray_icon.setToolTip('Docyo • Universal Media Suite (Running in background)')
 
-            if msg:
-                QMessageBox.information(self, 'Windows Integration Active',
-                    'Successfully configured Windows Explorer integration:\n\n' + '\n'.join(msg) +
-                    '\n\nYou can now select ANY file in Windows, right-click, and open the Docyo Wheel directly!')
+        tray_menu = QMenu()
+        tray_menu.setStyleSheet(DARK_STYLESHEET)
+
+        act_show = tray_menu.addAction('🎡 Show Converter Wheel')
+        act_show.triggered.connect(self.show_normal_and_raise)
+
+        act_float = tray_menu.addAction('🎡 Floating Companion Wheel')
+        act_float.triggered.connect(self.open_floating_wheel)
+
+        act_avatar = tray_menu.addAction('🌟 3D Avatar Studio')
+        act_avatar.triggered.connect(self.open_avatar_studio)
+
+        tray_menu.addSeparator()
+
+        if os.name == 'nt':
+            self.act_tray_startup = tray_menu.addAction('🚀 Run on Windows Startup')
+            self.act_tray_startup.setCheckable(True)
+            self.act_tray_startup.setChecked(is_windows_autostart_enabled())
+            self.act_tray_startup.toggled.connect(self.on_autostart_toggled)
+
+            act_explorer = tray_menu.addAction('📌 Add to Explorer Right-Click Menu')
+            act_explorer.triggered.connect(self.setup_windows_integration)
+            tray_menu.addSeparator()
+
+        act_quit = tray_menu.addAction('❌ Quit Docyo')
+        act_quit.triggered.connect(self.quit_application)
+
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_activated)
+        self.tray_icon.show()
+
+    def on_tray_activated(self, reason):
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
+            if self.isVisible() and not self.isMinimized():
+                self.hide()
             else:
-                QMessageBox.warning(self, 'Notice', 'Could not configure menu shortcuts. You can still drag files onto Docyo.exe or use Open With.')
-        except Exception as e:
-            QMessageBox.warning(self, 'Integration Notice', f'Integration details: {e}')
+                self.show_normal_and_raise()
+
+    def show_normal_and_raise(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self.tabs.setCurrentIndex(0)
+
+    def handle_external_files(self, paths: list, open_wheel_mode: bool = False):
+        if paths:
+            self.add_paths(paths)
+            self.tabs.setCurrentIndex(0)
+            if len(self.paths) == 1:
+                self.status.setText(f'Loaded "{Path(self.paths[0]).name}". Click any format on the wheel to convert!')
+            else:
+                self.status.setText(f'Loaded {len(self.paths)} files. Click any format on the wheel to convert!')
+
+        if open_wheel_mode:
+            self.open_floating_wheel()
+        else:
+            self.show_normal_and_raise()
+
+    def quit_application(self):
+        self._force_quit = True
+        if self.floating_wheel:
+            self.floating_wheel.close()
+        if self.batch and self.batch.isRunning():
+            self.batch.cancel.set()
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            self.tray_icon.hide()
+        QApplication.instance().quit()
 
     def add_paths(self, paths):
         if self.batch and self.batch.isRunning():
@@ -791,13 +959,27 @@ class Window(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.outputs[-1]).parent)))
 
     def closeEvent(self, event):
+        if not getattr(self, '_force_quit', False):
+            event.ignore()
+            self.hide()
+            if hasattr(self, 'tray_icon') and self.tray_icon and self.tray_icon.isVisible():
+                if not getattr(self, '_tray_notified', False):
+                    self._tray_notified = True
+                    self.tray_icon.showMessage(
+                        'Docyo is running in the background',
+                        'Docyo is active in the system tray. Click the tray icon anytime or right-click any file to convert instantly!',
+                        QSystemTrayIcon.Information,
+                        3500
+                    )
+            return
+
         if self.floating_wheel:
             self.floating_wheel.close()
         if self.batch and self.batch.isRunning():
             self.batch.cancel.set()
             event.ignore()
             self.status.setText('Stopping conversion before closing…')
-            QTimer.singleShot(200, self.close)
+            QTimer.singleShot(200, self.quit_application)
         else:
             event.accept()
 
@@ -901,13 +1083,11 @@ def main():
         handle = ctypes.windll.kernel32.GetConsoleWindow()
         if handle:
             ctypes.windll.user32.ShowWindow(handle, 0)
-    app = QApplication(sys.argv)
-    app.setStyle('Fusion')
-    app.setStyleSheet(DARK_STYLESHEET)
 
     # Process command line arguments (e.g. file paths passed by Windows Explorer or Open With)
     cli_files = []
     open_wheel = False
+    start_in_tray = ('--tray' in sys.argv or '--minimized' in sys.argv)
     for arg in sys.argv[1:]:
         if arg == '--wheel':
             open_wheel = True
@@ -916,11 +1096,59 @@ def main():
             if p.exists():
                 cli_files.append(str(p.resolve()))
 
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    app.setStyle('Fusion')
+    app.setStyleSheet(DARK_STYLESHEET)
+
+    # Deliver to background instance if already running
+    if try_send_to_existing_instance(SERVER_NAME, {'paths': cli_files, 'wheel': open_wheel}):
+        return 0
+
+    # Start primary instance
+    QLocalServer.removeServer(SERVER_NAME)
+    server = QLocalServer()
+    server.listen(SERVER_NAME)
+
     window = Window(initial_paths=cli_files, open_wheel_mode=open_wheel)
-    window.show()
+
+    def on_ipc_connection():
+        sock = server.nextPendingConnection()
+        if not sock:
+            return
+        buf = bytearray()
+        def on_read():
+            buf.extend(sock.readAll().data())
+            try:
+                data = json.loads(buf.decode('utf-8'))
+                window.handle_external_files(data.get('paths', []), data.get('wheel', False))
+                sock.disconnectFromServer()
+            except Exception:
+                pass
+        def on_disc():
+            if buf:
+                try:
+                    data = json.loads(buf.decode('utf-8'))
+                    window.handle_external_files(data.get('paths', []), data.get('wheel', False))
+                except Exception:
+                    pass
+            sock.deleteLater()
+        sock.readyRead.connect(on_read)
+        sock.disconnected.connect(on_disc)
+
+    server.newConnection.connect(on_ipc_connection)
+
+    if not start_in_tray:
+        window.show()
+
     if '--smoke-test' in sys.argv:
+        window._force_quit = True
         QTimer.singleShot(400, app.quit)
-    return app.exec()
+
+    ret = app.exec()
+    server.close()
+    QLocalServer.removeServer(SERVER_NAME)
+    return ret
 
 if __name__ == '__main__':
     raise SystemExit(main())
