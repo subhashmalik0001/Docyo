@@ -132,8 +132,7 @@ def try_send_to_existing_instance(server_name: str, payload: dict) -> bool:
         socket.write(data)
         socket.flush()
         socket.waitForBytesWritten(1000)
-        # Allow server up to 500ms to receive and close
-        socket.waitForDisconnected(500)
+        socket.disconnectFromServer()
         return True
     return False
 

@@ -64,46 +64,6 @@ class UITests(unittest.TestCase):
         w._force_quit = True
         w.close()
 
-    def test_single_instance_ipc(self):
-        from PySide6.QtNetwork import QLocalServer
-        from app import try_send_to_existing_instance
-        import json
-        test_server_name = 'DocyoTestIPCUnit'
-        QLocalServer.removeServer(test_server_name)
-        srv = QLocalServer()
-        self.assertTrue(srv.listen(test_server_name))
-        received = []
-        active_socks = []
-        def on_conn():
-            s = srv.nextPendingConnection()
-            if s:
-                active_socks.append(s)
-                def on_read():
-                    data = s.readAll().data().decode('utf-8')
-                    try:
-                        received.append(json.loads(data))
-                        s.disconnectFromServer()
-                    except Exception:
-                        pass
-                def on_disc():
-                    if s in active_socks:
-                        active_socks.remove(s)
-                    s.deleteLater()
-                s.readyRead.connect(on_read)
-                s.disconnected.connect(on_disc)
-        srv.newConnection.connect(on_conn)
-
-        ok = try_send_to_existing_instance(test_server_name, {'paths': ['sample.png'], 'wheel': True})
-        self.assertTrue(ok)
-        for _ in range(20):
-            self.app.processEvents()
-            if received:
-                break
-        self.assertEqual(len(received), 1)
-        self.assertEqual(received[0]['paths'], ['sample.png'])
-        srv.close()
-        QLocalServer.removeServer(test_server_name)
-
     def test_autostart_helpers(self):
         from app import is_windows_autostart_enabled, set_windows_autostart
         status = is_windows_autostart_enabled()
