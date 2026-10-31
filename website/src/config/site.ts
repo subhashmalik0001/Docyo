@@ -7,10 +7,30 @@ export function assetUrl(path: string): string {
   return `${BASE_PATH}${normalized}`;
 }
 
+function resolveSiteUrl(): string {
+  const candidate =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "") ||
+    process.env.URL ||
+    process.env.CF_PAGES_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "https://subhashmalik0001.github.io/Docyo";
+
+  const withProtocol = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+  return withProtocol.replace(/\/+$/, "");
+}
+
+const RESOLVED_SITE_URL = resolveSiteUrl();
+
 export const SITE_CONFIG = {
   name: "Docyo",
   tagline: "Drag. Hold Shift. Convert.",
-  url: "https://subhashmalik0001.github.io/Docyo",
+  url: RESOLVED_SITE_URL,
+  ogImageUrl: `${RESOLVED_SITE_URL}/og-image.png`,
   description:
     "Private, offline file converter, media processor, and 25-tool document toolkit for macOS, with an early Windows and Linux desktop edition. Zero cloud uploads, zero accounts, zero telemetry.",
   author: {
@@ -28,6 +48,8 @@ export const SITE_CONFIG = {
  */
 export const DOWNLOAD_CONFIG = {
   version: "0.2.0",
+  launchVideoUrl: assetUrl("/docyo-launch.mp4"),
+  launchVideoFilename: "Docyo-Launch-Video.mp4",
   releasesLatestUrl: "https://github.com/subhashmalik0001/Docyo/releases/latest",
   allReleasesUrl: "https://github.com/subhashmalik0001/Docyo/releases",
   ffmpegCommand: "brew install ffmpeg",

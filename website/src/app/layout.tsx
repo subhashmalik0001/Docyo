@@ -72,17 +72,20 @@ export const metadata: Metadata = {
     "Windows portable file converter",
   ],
   alternates: {
-    canonical: "/",
+    canonical: SITE_CONFIG.url,
   },
   openGraph: {
     type: "website",
+    locale: "en_US",
     url: SITE_CONFIG.url,
     siteName: SITE_CONFIG.name,
     title: `${SITE_CONFIG.name} — ${SITE_CONFIG.tagline}`,
     description: SITE_CONFIG.description,
     images: [
       {
-        url: "/og-image.png",
+        url: SITE_CONFIG.ogImageUrl,
+        secureUrl: SITE_CONFIG.ogImageUrl,
+        type: "image/png",
         width: 1200,
         height: 630,
         alt: "Docyo — Drag. Hold Shift. Convert. Private offline file converter and 25-tool document toolkit.",
@@ -93,7 +96,14 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${SITE_CONFIG.name} — ${SITE_CONFIG.tagline}`,
     description: SITE_CONFIG.description,
-    images: ["/og-image.png"],
+    images: [
+      {
+        url: SITE_CONFIG.ogImageUrl,
+        width: 1200,
+        height: 630,
+        alt: "Docyo — Drag. Hold Shift. Convert. Private offline file converter and 25-tool document toolkit.",
+      },
+    ],
   },
 };
 
