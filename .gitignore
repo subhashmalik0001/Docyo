@@ -31,3 +31,8 @@ Docyo-Diagnostics/
 *.key
 *.cer
 *.mobileprovision
+
+# Marketing website build & dependencies
+website/node_modules/
+website/.next/
+website/out/
