@@ -39,29 +39,6 @@ Private, offline, non-destructive file conversions right where your files live. 
 
 ---
 
-## Visual Preview
-
-### Drag. Hold Shift. Convert.
-*Select any number of files, hold Shift, and drop onto your chosen format:*
-
-![Illustration of dragging files onto the radial conversion wheel](docs/assets/showcase/readme-workflow.gif)
-
-### Notch Companion
-*Live progress indicator adapting to your screen:*
-
-![Illustration of the notch progress companion](docs/assets/showcase/readme-notch.gif)
-
-<details>
-<summary>View Still Screenshots</summary>
-
-| Radial Menu | Notch Styles |
-| :---: | :---: |
-| ![Radial menu](docs/assets/showcase/wheel.png) | ![Notch styles](docs/assets/showcase/notch-styles.png) |
-
-</details>
-
----
-
 ## Installation
 
 ### macOS
