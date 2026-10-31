@@ -32,7 +32,8 @@ export const SITE_CONFIG = {
   name: "Docyo",
   tagline: "Drag. Hold Shift. Convert.",
   url: RESOLVED_SITE_URL,
-  ogImageUrl: `${RESOLVED_SITE_URL}/og-image.png?v=0.2.0`,
+  ogImageUrl: `${RESOLVED_SITE_URL}/og-image.jpg?v=0.2.2`,
+  ogImagePngUrl: `${RESOLVED_SITE_URL}/og-image.png?v=0.2.2`,
   description:
     "Private, offline file converter, media processor, and 25-tool document toolkit for macOS, with an early Windows and Linux desktop edition. Zero cloud uploads, zero accounts, zero telemetry.",
   author: {

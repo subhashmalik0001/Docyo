@@ -85,6 +85,14 @@ export const metadata: Metadata = {
       {
         url: SITE_CONFIG.ogImageUrl,
         secureUrl: SITE_CONFIG.ogImageUrl,
+        type: "image/jpeg",
+        width: 1200,
+        height: 630,
+        alt: "Docyo — Drag. Hold Shift. Convert. Private offline file converter and 25-tool document toolkit.",
+      },
+      {
+        url: SITE_CONFIG.ogImagePngUrl,
+        secureUrl: SITE_CONFIG.ogImagePngUrl,
         type: "image/png",
         width: 1200,
         height: 630,
