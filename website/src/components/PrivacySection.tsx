@@ -1,11 +1,12 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function PrivacySection() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
 
   return (
     <section

@@ -1,13 +1,14 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { PLATFORM_COMPARISON } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { AppleIcon, WindowsIcon } from "@/components/Icons";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function PlatformTable() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
 
   return (
     <section

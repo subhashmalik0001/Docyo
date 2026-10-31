@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { FORMAT_CATEGORIES, type FormatCategorySpec } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function FormatExplorer() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [activeCatId, setActiveCatId] =
     useState<FormatCategorySpec["id"]>("images");
   const [selectedInput, setSelectedInput] = useState<string>("HEIC");

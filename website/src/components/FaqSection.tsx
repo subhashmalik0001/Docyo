@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { FAQ_ITEMS } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { ChevronDownIcon } from "@/components/Icons";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function FaqSection() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (

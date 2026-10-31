@@ -131,9 +131,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${satoshi.variable} ${clashDisplay.variable} ${GeistMono.variable}`}
     >
-      <body className="bg-[#0A0A0B] text-white antialiased">
+      <body
+        suppressHydrationWarning
+        className="bg-[#0A0A0B] text-white antialiased"
+      >
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

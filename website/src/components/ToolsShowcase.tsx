@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import {
   FILE_ACTION_TARGETS,
   TOOLS_LIST,
   type ToolGroupKey,
 } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { ToolCategoryGlyph } from "@/components/Icons";
 import { SpotlightCard } from "@/components/Spotlight";
 
@@ -42,7 +43,7 @@ const GROUPS: { key: ToolGroupKey; label: string; count: number }[] = [
 ];
 
 export function ToolsShowcase() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [activeGroup, setActiveGroup] = useState<ToolGroupKey>("all");
   const railRef = useRef<HTMLDivElement>(null);
 

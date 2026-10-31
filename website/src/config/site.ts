@@ -31,6 +31,7 @@ export const DOWNLOAD_CONFIG = {
   releasesLatestUrl: "https://github.com/subhashmalik0001/Docyo/releases/latest",
   allReleasesUrl: "https://github.com/subhashmalik0001/Docyo/releases",
   ffmpegCommand: "brew install ffmpeg",
+  macQuarantineCommand: "xattr -cr /Applications/Docyo.app",
   platforms: {
     macos: {
       key: "macos" as const,
@@ -42,10 +43,10 @@ export const DOWNLOAD_CONFIG = {
       size: "5.4 MB",
       downloadUrl: assetUrl("/downloads/Docyo-macOS.dmg"),
       steps: [
-        "Open Docyo-macOS.dmg in Downloads.",
-        "Drag Docyo.app into your Applications folder.",
-        "Open Docyo — it lives quietly in your menu bar.",
-        "If prompted by Gatekeeper, approve once in System Settings → Privacy & Security.",
+        "Open Docyo-macOS.dmg and drag Docyo.app into Applications.",
+        "Open Docyo from Applications — if macOS says “Apple could not verify Docyo”, click Done (not Move to Trash).",
+        "Go to System Settings → Privacy & Security, scroll down, and click Open Anyway once.",
+        "Docyo now launches cleanly and stays ready in your menu bar.",
       ],
     },
     windows: {

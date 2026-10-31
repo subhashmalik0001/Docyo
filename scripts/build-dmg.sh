@@ -25,5 +25,14 @@ hdiutil create \
   -format UDZO \
   "$OUT_DMG"
 
+# Optional Apple Developer ID signing + Notarization + Stapling (eliminates Gatekeeper prompt for all users)
+if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+  codesign --force --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$OUT_DMG"
+  if [[ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+    xcrun notarytool submit "$OUT_DMG" --keychain-profile "$NOTARY_KEYCHAIN_PROFILE" --wait
+    xcrun stapler staple "$OUT_DMG"
+  fi
+fi
+
 printf 'Packaged %s\n' "$OUT_DMG"
 

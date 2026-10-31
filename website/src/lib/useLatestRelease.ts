@@ -106,9 +106,7 @@ async function fetchLatestMacDmg(): Promise<ResolvedMacRelease> {
  * and upgrades automatically only if a newer `.dmg` release is published on GitHub.
  */
 export function useLatestMacRelease(): ResolvedMacRelease {
-  const [release, setRelease] = useState<ResolvedMacRelease>(
-    cachedRelease ?? DEFAULT_MAC
-  );
+  const [release, setRelease] = useState<ResolvedMacRelease>(DEFAULT_MAC);
 
   useEffect(() => {
     let active = true;

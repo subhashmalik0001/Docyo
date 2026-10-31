@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { assetUrl } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { SpotlightCard } from "@/components/Spotlight";
 import { NotchMascot } from "@/components/Icons";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function FeaturesBento() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [notchHovered, setNotchHovered] = useState(false);
   const [activeKeycap, setActiveKeycap] = useState<0 | 1 | 2>(0);
 

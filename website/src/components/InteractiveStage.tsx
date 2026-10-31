@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import {
   assetUrl,
   COMPANION_CAPTIONS,
@@ -11,6 +11,7 @@ import {
   type DemoFileSpec,
   type WheelMode,
 } from "@/config/site";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { CheckIcon, DocyoMark, FileKindIcon, NotchMascot } from "@/components/Icons";
 
 interface WedgeOption {
@@ -72,8 +73,8 @@ function buildWedgePath(
 
   return {
     path,
-    midX: mid.x,
-    midY: mid.y,
+    midX: Number(mid.x.toFixed(2)),
+    midY: Number(mid.y.toFixed(2)),
     unitX: Math.cos(centerAngle),
     unitY: -Math.sin(centerAngle),
   };
@@ -118,7 +119,7 @@ const ALL_PHASES: CompanionPhase[] = [
 ];
 
 export function InteractiveStage() {
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [selectedFileId, setSelectedFileId] = useState<DemoFileSpec["id"]>("photo");
   const [mode, setMode] = useState<WheelMode>("convert");
   const [notchStyle, setNotchStyle] = useState<"black" | "glass">("black");
@@ -716,8 +717,8 @@ export function InteractiveStage() {
                           className="transition-colors duration-150"
                         />
                         <text
-                          x={geom.midX}
-                          y={geom.midY - 3}
+                          x={geom.midX.toFixed(2)}
+                          y={(geom.midY - 3).toFixed(2)}
                           textAnchor="middle"
                           dominantBaseline="central"
                           fill={isActive ? "#FFFFFF" : "rgba(255,255,255,0.86)"}
@@ -726,8 +727,8 @@ export function InteractiveStage() {
                           {wedge.label}
                         </text>
                         <text
-                          x={geom.midX}
-                          y={geom.midY + 11}
+                          x={geom.midX.toFixed(2)}
+                          y={(geom.midY + 11).toFixed(2)}
                           textAnchor="middle"
                           dominantBaseline="central"
                           fill={

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { DOWNLOAD_CONFIG } from "@/config/site";
 import { useDetectedOS } from "@/lib/useOs";
 import { useLatestMacRelease } from "@/lib/useLatestRelease";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { AppleIcon, WindowsIcon } from "@/components/Icons";
 import { Magnetic } from "@/components/MagneticButton";
 
@@ -13,7 +14,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 export function Hero() {
   const os = useDetectedOS();
   const macRelease = useLatestMacRelease();
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const sectionRef = useRef<HTMLElement>(null);
 
   const isWindows = os === "windows";

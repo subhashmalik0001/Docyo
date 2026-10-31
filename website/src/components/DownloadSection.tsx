@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { DOWNLOAD_CONFIG } from "@/config/site";
 import { useDetectedOS } from "@/lib/useOs";
 import { useLatestMacRelease } from "@/lib/useLatestRelease";
+import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import {
   AppleIcon,
   ArrowUpRightIcon,
@@ -23,8 +24,9 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 export function DownloadSection() {
   const os = useDetectedOS();
   const macRelease = useLatestMacRelease();
-  const reduced = useReducedMotion();
+  const reduced = useHydratedReducedMotion();
   const [copiedFfmpeg, setCopiedFfmpeg] = useState(false);
+  const [copiedQuarantine, setCopiedQuarantine] = useState(false);
 
   const mac = DOWNLOAD_CONFIG.platforms.macos;
   const win = DOWNLOAD_CONFIG.platforms.windows;
@@ -34,23 +36,27 @@ export function DownloadSection() {
   const highlightLinux = os === "linux";
   const highlightMac = !highlightWindows && !highlightLinux;
 
-  const copyFfmpeg = async () => {
+  const copyText = async (
+    text: string,
+    onDone: (v: boolean) => void
+  ) => {
     try {
-      await navigator.clipboard.writeText(DOWNLOAD_CONFIG.ffmpegCommand);
-      setCopiedFfmpeg(true);
-      window.setTimeout(() => setCopiedFfmpeg(false), 2000);
+      await navigator.clipboard.writeText(text);
     } catch {
-      // Fallback for restricted clipboard contexts
       const input = document.createElement("textarea");
-      input.value = DOWNLOAD_CONFIG.ffmpegCommand;
+      input.value = text;
       document.body.appendChild(input);
       input.select();
       document.execCommand("copy");
       document.body.removeChild(input);
-      setCopiedFfmpeg(true);
-      window.setTimeout(() => setCopiedFfmpeg(false), 2000);
     }
+    onDone(true);
+    window.setTimeout(() => onDone(false), 2000);
   };
+
+  const copyFfmpeg = () => copyText(DOWNLOAD_CONFIG.ffmpegCommand, setCopiedFfmpeg);
+  const copyQuarantine = () =>
+    copyText(DOWNLOAD_CONFIG.macQuarantineCommand, setCopiedQuarantine);
 
   return (
     <section
@@ -411,28 +417,50 @@ export function DownloadSection() {
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-white/50">
-                  Honest Note on Code Signing
+                  Gatekeeper &amp; Code Signing
                 </span>
                 <span className="font-mono text-[11px] text-white/40">
                   Ad-hoc signed · Open source
                 </span>
               </div>
               <p className="mt-2 text-[14px] leading-relaxed text-white/65">
-                Docyo is a free, independent GPL-3.0 project and release binaries
-                are currently <strong className="font-medium text-white">ad-hoc signed</strong>{" "}
-                rather than Apple Developer ID notarized or EV certificate signed.
-              </p>
-              <p className="mt-2 text-[13.5px] leading-relaxed text-white/55">
-                On first launch, macOS Gatekeeper may ask you to confirm in{" "}
-                <span className="font-mono text-[12px] text-white/80">
+                Because Docyo is free, independent GPL-3.0 software without a paid
+                Apple Developer ID certificate, macOS shows{" "}
+                <strong className="font-medium text-white">
+                  &ldquo;Apple could not verify Docyo&rdquo;
+                </strong>{" "}
+                on first launch. Click <strong className="font-medium text-white">Done</strong>{" "}
+                and allow it in{" "}
+                <span className="font-mono text-[12px] text-white/85">
                   System Settings → Privacy &amp; Security → Open Anyway
-                </span>{" "}
-                (and Windows SmartScreen via{" "}
-                <span className="font-mono text-[12px] text-white/80">
-                  More info → Run anyway
                 </span>
-                ). Prefer to verify every line? Build locally from source below.
+                , or clear the quarantine flag in Terminal:
               </p>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-white/[0.09] bg-[#0A0A0B] px-3.5 py-2.5">
+              <code className="truncate font-mono text-[12.5px] text-white/90 sm:text-[13px]">
+                <span className="select-none text-[#A78BFA]">$ </span>
+                {DOWNLOAD_CONFIG.macQuarantineCommand}
+              </code>
+              <button
+                type="button"
+                onClick={copyQuarantine}
+                aria-label="Copy xattr quarantine bypass command"
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-white/[0.1] bg-[#111114] px-2.5 font-mono text-[11.5px] text-white/80 transition-colors hover:border-[#7C3AED]/60 hover:text-white focus-visible:outline-2 focus-visible:outline-[#7C3AED]"
+              >
+                {copiedQuarantine ? (
+                  <>
+                    <CheckIcon size={14} className="text-[#A78BFA]" />
+                    <span className="text-[#A78BFA]">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon size={14} />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
