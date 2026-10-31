@@ -24,7 +24,6 @@ func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat {
     a + (b - a) * t
 }
 
-/// Studio cubic-bezier approximation of (0.22, 1, 0.36, 1) — fast launch, silky settle
 @inline(__always)
 func easeOutQuint(_ x: CGFloat) -> CGFloat {
     let c = clamp(x)
@@ -37,7 +36,6 @@ func easeInOutCubic(_ x: CGFloat) -> CGFloat {
     return c < 0.5 ? 4 * c * c * c : 1 - pow(-2 * c + 2, 3) / 2
 }
 
-/// Physical critically-damped slight-overshoot spring for radial wheel wedges & badges
 @inline(__always)
 func springPop(_ x: CGFloat) -> CGFloat {
     let c = clamp(x)
@@ -71,9 +69,9 @@ enum Palette {
     }
 }
 
-// MARK: - Typography Loader (Geist Sans + Geist Mono + System SF Pro Display Fallback)
+// MARK: - Typography Loader
 
-final class StudioFonts {
+final class StudioFonts: @unchecked Sendable {
     private var displaySemiName: String?
     private var displayBoldName: String?
     private var sansMedName: String?
@@ -126,7 +124,7 @@ final class StudioFonts {
     }
 }
 
-// MARK: - Top-Left Canvas Drawing Helpers (1920 x 1080)
+// MARK: - Canvas Drawing Helpers (1920 x 1080)
 
 struct Canvas {
     let ctx: CGContext
@@ -142,19 +140,19 @@ struct Canvas {
         ctx.restoreGState()
     }
 
-    func drawGrid(lineAlpha: CGFloat = 0.032, step: CGFloat = 64, darkInk: Bool = false) {
+    func drawGrid(lineAlpha: CGFloat = 0.032, step: CGFloat = 64, darkInk: Bool = false, driftX: CGFloat = 0, driftY: CGFloat = 0) {
         ctx.saveGState()
         let c = darkInk ? Palette.black(lineAlpha) : Palette.white(lineAlpha)
         ctx.setStrokeColor(c.cgColor)
         ctx.setLineWidth(1)
-        var x: CGFloat = 0
-        while x <= width {
+        var x: CGFloat = driftX.truncatingRemainder(dividingBy: step)
+        while x <= width + step {
             ctx.move(to: CGPoint(x: x + 0.5, y: 0))
             ctx.addLine(to: CGPoint(x: x + 0.5, y: height))
             x += step
         }
-        var y: CGFloat = 0
-        while y <= height {
+        var y: CGFloat = driftY.truncatingRemainder(dividingBy: step)
+        while y <= height + step {
             ctx.move(to: CGPoint(x: 0, y: y + 0.5))
             ctx.addLine(to: CGPoint(x: width, y: y + 0.5))
             y += step
@@ -205,7 +203,7 @@ struct Canvas {
         if let fill = fill {
             if shadowAlpha > 0 {
                 ctx.setShadow(
-                    offset: CGSize(width: 0, height: -shadowY), // Note: CG shadow offset is device-space Y
+                    offset: CGSize(width: 0, height: -shadowY),
                     blur: shadowBlur,
                     color: NSColor(srgbRed: 0, green: 0, blue: 0, alpha: shadowAlpha).cgColor
                 )
@@ -226,7 +224,6 @@ struct Canvas {
         }
     }
 
-    /// Correctly draws a CGImage right-side-up inside our top-left flipped coordinate space
     func drawImage(_ img: CGImage?, in rect: CGRect, alpha: CGFloat = 1.0, cornerRadius: CGFloat = 0) {
         guard let img = img, alpha > 0.001 else { return }
         ctx.saveGState()
@@ -236,26 +233,29 @@ struct Canvas {
             ctx.clip()
         }
         ctx.interpolationQuality = .high
-        // Unflip locally around rect so CGImage renders right-side-up
         ctx.translateBy(x: rect.minX, y: rect.maxY)
         ctx.scaleBy(x: 1, y: -1)
         ctx.draw(img, in: CGRect(x: 0, y: 0, width: rect.width, height: rect.height))
         ctx.restoreGState()
     }
 
-    /// Draws the official Docyo 3D Purple Scholar Penguin inside an optional squircle app dock badge
-    func drawLogoSquircle(center: CGPoint, size: CGFloat, scale: CGFloat = 1.0, alpha: CGFloat = 1.0, glowAlpha: CGFloat = 0.25) {
+    func drawLogoSquircle(center: CGPoint, size: CGFloat, scale: CGFloat = 1.0, alpha: CGFloat = 1.0, glowAlpha: CGFloat = 0.25, rotation: CGFloat = 0) {
         guard alpha > 0.001, scale > 0.01 else { return }
+        ctx.saveGState()
+        ctx.translateBy(x: center.x, y: center.y)
+        if rotation != 0 {
+            ctx.rotate(by: rotation)
+        }
         let s = size * scale
-        let rect = CGRect(x: center.x - s / 2, y: center.y - s / 2, width: s, height: s)
+        let rect = CGRect(x: -s / 2, y: -s / 2, width: s, height: s)
         if glowAlpha > 0 {
-            drawRadialSpotlight(cx: center.x, cy: center.y, radius: s * 1.35, alpha: glowAlpha * alpha)
+            drawRadialSpotlight(cx: 0, cy: 0, radius: s * 1.4, alpha: glowAlpha * alpha)
         }
         drawBox(
             rect,
             radius: s * 0.24,
             fill: Palette.surface1.withAlphaComponent(alpha),
-            stroke: Palette.purple(0.55 * alpha),
+            stroke: Palette.purple(0.65 * alpha),
             lineWidth: 2.0,
             shadowAlpha: 0.55 * alpha,
             shadowBlur: 36,
@@ -263,6 +263,7 @@ struct Canvas {
         )
         let pad = s * 0.10
         drawImage(avatar, in: rect.insetBy(dx: pad, dy: pad), alpha: alpha)
+        ctx.restoreGState()
     }
 
     @discardableResult
@@ -272,8 +273,7 @@ struct Canvas {
         font: NSFont,
         color: NSColor,
         tracking: CGFloat = 0,
-        align: NSTextAlignment = .left,
-        maxWidth: CGFloat? = nil
+        align: NSTextAlignment = .left
     ) -> CGSize {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = align
@@ -285,20 +285,14 @@ struct Canvas {
         ]
         let attrStr = NSAttributedString(string: text, attributes: attrs)
         let size = attrStr.size()
-        if let maxW = maxWidth {
-            let drawRect = CGRect(x: point.x, y: point.y, width: maxW, height: size.height * 2.5)
-            attrStr.draw(in: drawRect)
-            return size
-        } else {
-            var drawX = point.x
-            if align == .center {
-                drawX -= size.width / 2
-            } else if align == .right {
-                drawX -= size.width
-            }
-            attrStr.draw(at: CGPoint(x: drawX, y: point.y))
-            return size
+        var drawX = point.x
+        if align == .center {
+            drawX -= size.width / 2
+        } else if align == .right {
+            drawX -= size.width
         }
+        attrStr.draw(at: CGPoint(x: drawX, y: point.y))
+        return size
     }
 
     func measureText(_ text: String, font: NSFont, tracking: CGFloat = 0) -> CGSize {
@@ -306,6 +300,7 @@ struct Canvas {
         return NSAttributedString(string: text, attributes: attrs).size()
     }
 
+    @discardableResult
     func drawPill(
         centerX: CGFloat,
         topY: CGFloat,
@@ -400,6 +395,7 @@ struct Canvas {
         rOuter: CGFloat,
         index: Int,
         count: Int,
+        rotationOffset: CGFloat = 0,
         gapPx: CGFloat = 7,
         pushOut: CGFloat = 0,
         scale: CGFloat = 1.0,
@@ -413,8 +409,7 @@ struct Canvas {
     ) {
         guard scale > 0.02, alpha > 0.01 else { return }
         let slice = (.pi * 2.0) / CGFloat(count)
-        // Top-left coordinates: 12 o'clock is -pi/2, clockwise increases angle!
-        let centerAngle = -.pi / 2.0 + CGFloat(index) * slice
+        let centerAngle = -.pi / 2.0 + CGFloat(index) * slice + rotationOffset
         let halfSlice = slice / 2.0
 
         let rIn = rInner * scale
@@ -427,10 +422,8 @@ struct Canvas {
         let aInStart  = centerAngle - halfSlice + gapInner
         let aInEnd    = centerAngle + halfSlice - gapInner
 
-        let dx = cos(centerAngle) * pushOut
-        let dy = sin(centerAngle) * pushOut
-        let ox = cx + dx
-        let oy = cy + dy
+        let ox = cx + cos(centerAngle) * pushOut
+        let oy = cy + sin(centerAngle) * pushOut
 
         let path = CGMutablePath()
         path.addArc(center: CGPoint(x: ox, y: oy), radius: rOut, startAngle: aOutStart, endAngle: aOutEnd, clockwise: false)
@@ -474,18 +467,27 @@ struct Canvas {
     }
 }
 
-// MARK: - 7-Act Launch Film Storyboard Renderer (32.0s @ 60fps = 1,920 frames)
+// MARK: - Motion-Rich Launch Film Director (30.0s, 60fps = 1,800 frames)
 
-struct LaunchFilmDirector {
+struct LaunchFilmDirector: @unchecked Sendable {
     let fonts: StudioFonts
     let avatar: CGImage?
-    let duration: Double = 32.0
+    let duration: Double = 30.0
     let fps: Int = 60
+
+    private static let hudPills: [(CGFloat, CGFloat, String, String)] = [
+        (0.00,  3.80,  "LOCAL ENGINE",      "DOCYO v0.2 · ZERO CLOUD UPLOADS · 100% PRIVATE"),
+        (3.80,  7.60,  "RADIAL WHEEL",     "⇧ SHIFT TO SUMMON WHEEL · DROP TO CONVERT"),
+        (7.60,  12.00, "NOTCH COMPANION",  "LIVE STATUS IN NOTCH · ORIGINALS UNTOUCHED"),
+        (12.00, 17.50, "MODIFIER RINGS",   "⌥⇧ 25 BUILT-IN TOOLS · ⌃ INSTANT ACTIONS"),
+        (17.50, 22.80, "CODEC MATRIX",     "176 LOCAL CONVERSION ROUTES AT NATIVE SPEED"),
+        (22.80, 26.20, "AIR-GAPPED",       "0.0 KB UPLOADED · ZERO TELEMETRY · NO ACCOUNTS"),
+        (26.20, 30.00, "FREE & OPEN",      "MAC · WINDOWS · LINUX · SUBHASH MALIK")
+    ]
 
     func renderFrame(time tSec: Double, into rawCtx: CGContext) {
         let t = CGFloat(tSec)
 
-        // Flip CGContext so (0, 0) is TOP-LEFT (1920 x 1080) and pair with flipped NSGraphicsContext
         rawCtx.saveGState()
         rawCtx.translateBy(x: 0, y: 1080)
         rawCtx.scaleBy(x: 1, y: -1)
@@ -495,152 +497,209 @@ struct LaunchFilmDirector {
         NSGraphicsContext.current = nsCtx
 
         let c = Canvas(ctx: rawCtx, fonts: fonts, avatar: avatar)
+        let isWhiteScene = (t >= 22.80 && t < 26.20)
 
-        if t < 4.2 {
+        // Subtle camera zoom & float for dynamic cinema motion
+        let camZoom = 1.0 + 0.025 * sin(t * 0.35)
+        let camDriftX = sin(t * 0.45) * 8.0
+        let camDriftY = cos(t * 0.35) * 6.0
+
+        rawCtx.saveGState()
+        rawCtx.translateBy(x: 960 + camDriftX, y: 540 + camDriftY)
+        rawCtx.scaleBy(x: camZoom, y: camZoom)
+        rawCtx.translateBy(x: -960, y: -540)
+
+        if t < 3.80 {
             renderAct1BrandReveal(c, t: t)
-        } else if t < 11.8 {
-            renderAct2InteractiveDesktop(c, t: t - 4.2)
-        } else if t < 16.6 {
-            renderAct3ModifierRingsAndTools(c, t: t - 11.8)
-        } else if t < 21.4 {
-            renderAct4FormatMatrix176(c, t: t - 16.6)
-        } else if t < 26.2 {
-            renderAct5WhitePrivacyContrast(c, t: t - 21.4)
+        } else if t < 12.00 {
+            renderAct2InteractiveDesktop(c, t: t - 3.80)
+        } else if t < 17.50 {
+            renderAct3ModifierRingsAndTools(c, t: t - 12.00)
+        } else if t < 22.80 {
+            renderAct4FormatMatrix176(c, t: t - 17.50)
+        } else if t < 26.20 {
+            renderAct5WhitePrivacyContrast(c, t: t - 22.80)
         } else {
-            renderAct6FinaleCTA(c, t: t - 26.2)
+            renderAct6FinaleCTA(c, t: t - 26.20)
         }
 
-        // Smooth cross-scene micro-transitions & clean end fade
+        rawCtx.restoreGState()
+
+        // Dynamic Interactive Bottom Product HUD (Replaces speech captions)
+        drawInteractiveProductHUD(c, globalT: t, onWhite: isWhiteScene)
+
+        // Transitions
         drawSceneTransitionOverlay(c, globalT: t)
 
         NSGraphicsContext.restoreGraphicsState()
         rawCtx.restoreGState()
     }
 
-    // MARK: Act 1 (0.0s - 4.2s): Cold Open -> Official Penguin Reveal -> "Drag. Hold Shift. Convert."
+    private func drawInteractiveProductHUD(_ c: Canvas, globalT t: CGFloat, onWhite: Bool) {
+        for (s, e, tag, desc) in Self.hudPills {
+            if t >= s && t <= e {
+                let fi = easeOutQuint(prog(t, s, 0.20))
+                let fo = 1.0 - easeInOutCubic(prog(t, e - 0.20, 0.20))
+                let a = clamp(fi * fo)
+                guard a > 0.02 else { break }
+
+                let tagFont = fonts.mono(11, semibold: true)
+                let descFont = fonts.mono(13.5, semibold: true)
+                let tagW = c.measureText(tag, font: tagFont, tracking: 1.2).width + 20
+                let descW = c.measureText(desc, font: descFont, tracking: 0.8).width
+                let totalW = tagW + descW + 58
+                let boxH: CGFloat = 42
+                let boxRect = CGRect(x: 960 - totalW / 2, y: 1014 + (1 - fi) * 12, width: totalW, height: boxH)
+
+                c.drawBox(
+                    boxRect,
+                    radius: 21,
+                    fill: onWhite ? Palette.bgObsidian.withAlphaComponent(0.94 * a) : Palette.pureBlack.withAlphaComponent(0.88 * a),
+                    stroke: Palette.purple(0.65 * a),
+                    lineWidth: 1.5,
+                    shadowAlpha: 0.5 * a,
+                    shadowBlur: 24,
+                    shadowY: 8
+                )
+
+                // Animated active pulse dot
+                let dotCenter = CGPoint(x: boxRect.minX + 20, y: boxRect.midY)
+                let dotPulse = 0.5 + 0.5 * sin(Double(t) * 9.0)
+                c.ctx.saveGState()
+                c.ctx.setFillColor(Palette.purple(0.35 * CGFloat(dotPulse) * a).cgColor)
+                c.ctx.fillEllipse(in: CGRect(x: dotCenter.x - 7, y: dotCenter.y - 7, width: 14, height: 14))
+                c.ctx.setFillColor(Palette.purpleSoft(a).cgColor)
+                c.ctx.fillEllipse(in: CGRect(x: dotCenter.x - 3.5, y: dotCenter.y - 3.5, width: 7, height: 7))
+                c.ctx.restoreGState()
+
+                // Tag pill
+                let tagRect = CGRect(x: boxRect.minX + 34, y: boxRect.midY - 11, width: tagW, height: 22)
+                c.drawBox(tagRect, radius: 6, fill: Palette.purple(0.25 * a), stroke: Palette.purple(0.6 * a), lineWidth: 1.0)
+                c.drawText(tag, at: CGPoint(x: tagRect.midX, y: tagRect.minY + 4), font: tagFont, color: Palette.purpleSoft(a), tracking: 1.2, align: .center)
+
+                // Text
+                c.drawText(
+                    desc,
+                    at: CGPoint(x: tagRect.maxX + 12, y: boxRect.minY + 12),
+                    font: descFont,
+                    color: Palette.white(0.92 * a),
+                    tracking: 0.8
+                )
+                break
+            }
+        }
+    }
+
+    // MARK: Act 1 (0.0s - 3.8s): Brand Hook & Official Scholar Penguin Reveal
     private func renderAct1BrandReveal(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.bgObsidian)
-        c.drawGrid(lineAlpha: 0.032)
+        let drift = t * 14.0
+        c.drawGrid(lineAlpha: 0.035, driftX: drift, driftY: drift * 0.5)
 
-        if t < 1.42 {
-            // Cold open hook
-            let enter = easeOutQuint(prog(t, 0.08, 0.48))
-            let exit = 1.0 - easeInOutCubic(prog(t, 1.15, 0.26))
+        if t < 1.40 {
+            let enter = easeOutQuint(prog(t, 0.05, 0.40))
+            let exit = 1.0 - easeInOutCubic(prog(t, 1.15, 0.25))
             let a = enter * exit
-            let yOff = (1 - enter) * 26
+            let yOff = (1 - enter) * 28
 
-            c.drawRadialSpotlight(cx: 960, cy: 520, radius: 560, alpha: 0.16 * a)
+            c.drawRadialSpotlight(cx: 960, cy: 520, radius: 620, alpha: 0.22 * a)
             c.drawText(
-                "WHY UPLOAD PRIVATE FILES TO THE CLOUD",
-                at: CGPoint(x: 960, y: 430 + yOff),
-                font: fonts.mono(16, semibold: true),
+                "WHY UPLOAD PRIVATE FILES TO THE CLOUD?",
+                at: CGPoint(x: 960, y: 420 + yOff),
+                font: fonts.mono(18, semibold: true),
                 color: Palette.purpleSoft(a),
-                tracking: 3.0,
+                tracking: 3.2,
                 align: .center
             )
             c.drawText(
                 "Just to change four letters after a dot?",
-                at: CGPoint(x: 960, y: 476 + yOff),
-                font: fonts.display(64, bold: false),
+                at: CGPoint(x: 960, y: 472 + yOff),
+                font: fonts.display(68, bold: false),
                 color: Palette.white(a),
-                tracking: -2.0,
+                tracking: -2.2,
                 align: .center
             )
 
-            // Horizontal purple laser wipe at 1.18s - 1.42s
-            let scan = prog(t, 1.14, 0.28)
+            let scan = prog(t, 1.16, 0.24)
             if scan > 0 && scan < 1 {
-                let lineW = lerp(120, 1600, easeOutQuint(scan))
+                let lineW = lerp(80, 1720, easeOutQuint(scan))
                 let lineA = sin(scan * .pi)
-                c.drawBox(
-                    CGRect(x: 960 - lineW / 2, y: 538, width: lineW, height: 2.5),
-                    radius: 1.25,
-                    fill: Palette.purple(lineA)
-                )
+                c.drawBox(CGRect(x: 960 - lineW / 2, y: 550, width: lineW, height: 3.5), radius: 1.75, fill: Palette.purple(lineA))
             }
         } else {
-            // Brand Reveal (1.42s -> 4.20s)
-            let local = t - 1.42
-            let logoEnter = springPop(prog(local, 0.0, 0.62))
-            let logoAlpha = easeOutQuint(prog(local, 0.0, 0.35))
+            let local = t - 1.40
+            let logoEnter = springPop(prog(local, 0.0, 0.55))
+            let logoAlpha = easeOutQuint(prog(local, 0.0, 0.30))
+            let logoRot = (1.0 - easeOutQuint(prog(local, 0.0, 0.55))) * -0.25 // Dynamic entrance rotation
 
-            c.drawRadialSpotlight(cx: 960, cy: 420, radius: 680, alpha: 0.24 * logoAlpha)
+            c.drawRadialSpotlight(cx: 960, cy: 380, radius: 760, alpha: 0.30 * logoAlpha)
 
-            // Official Docyo 3D Purple Scholar Penguin Dock Icon
+            // Animated glowing halo ring behind logo
+            let haloP = prog(local, 0.2, 2.0)
+            let haloR: CGFloat = 100 + 15 * sin(haloP * .pi * 3)
+            c.ctx.saveGState()
+            c.ctx.setStrokeColor(Palette.purple(0.35 * logoAlpha).cgColor)
+            c.ctx.setLineWidth(2.0)
+            c.ctx.setLineDash(phase: CGFloat(local * 40), lengths: [6, 8])
+            c.ctx.strokeEllipse(in: CGRect(x: 960 - haloR, y: 262 - haloR, width: haloR * 2, height: haloR * 2))
+            c.ctx.restoreGState()
+
             c.drawLogoSquircle(
-                center: CGPoint(x: 960, y: 278),
-                size: 152,
-                scale: 0.72 + 0.28 * logoEnter,
+                center: CGPoint(x: 960, y: 262),
+                size: 160,
+                scale: 0.70 + 0.30 * logoEnter,
                 alpha: logoAlpha,
-                glowAlpha: 0.28
+                glowAlpha: 0.36,
+                rotation: logoRot
             )
 
-            // Wordmark + Eyebrow Pill
-            let pillP = easeOutQuint(prog(local, 0.18, 0.45))
+            let pillP = easeOutQuint(prog(local, 0.15, 0.40))
             c.drawPill(
                 centerX: 960,
-                topY: 386 + (1 - pillP) * 16,
+                topY: 374 + (1 - pillP) * 16,
                 text: "DOCYO v0.2  ·  LOCAL-FIRST FILE CONVERTER & TOOLKIT",
                 font: fonts.mono(14, semibold: true),
-                textColor: Palette.white(0.88),
+                textColor: Palette.white(0.90),
                 fill: Palette.surface1,
-                stroke: Palette.white(0.12),
+                stroke: Palette.purple(0.5),
                 dotColor: Palette.purple,
                 alpha: pillP
             )
 
-            // 3-Beat Split Headline: "Drag." | "Hold Shift." | "Convert."
+            // Dynamic kinetic headline entries
             let fBig = fonts.display(112, bold: true)
             let w1 = "Drag."
             let w2 = "Hold Shift."
             let w3 = "Convert."
-            let gap: CGFloat = 32
+            let gap: CGFloat = 34
             let s1 = c.measureText(w1, font: fBig, tracking: -3.8)
             let s2 = c.measureText(w2, font: fBig, tracking: -3.8)
             let s3 = c.measureText(w3, font: fBig, tracking: -3.8)
             let totalW = s1.width + gap + s2.width + gap + s3.width
             let startX = 960 - totalW / 2
-            let baseY: CGFloat = 472
+            let baseY: CGFloat = 464
 
-            let b1 = easeOutQuint(prog(local, 0.42, 0.44))
-            let b2 = easeOutQuint(prog(local, 0.80, 0.44))
-            let b3 = easeOutQuint(prog(local, 1.18, 0.44))
+            let b1 = springPop(prog(local, 0.35, 0.42))
+            let b2 = springPop(prog(local, 0.70, 0.42))
+            let b3 = springPop(prog(local, 1.05, 0.42))
 
             if b1 > 0 {
-                c.drawText(
-                    w1,
-                    at: CGPoint(x: startX, y: baseY + (1 - b1) * 42),
-                    font: fBig,
-                    color: Palette.white(b1),
-                    tracking: -3.8
-                )
+                c.drawText(w1, at: CGPoint(x: startX, y: baseY + (1 - b1) * 36), font: fBig, color: Palette.white(b1), tracking: -3.8)
             }
             if b2 > 0 {
-                c.drawText(
-                    w2,
-                    at: CGPoint(x: startX + s1.width + gap, y: baseY + (1 - b2) * 42),
-                    font: fBig,
-                    color: Palette.purpleSoft(b2),
-                    tracking: -3.8
-                )
+                c.drawText(w2, at: CGPoint(x: startX + s1.width + gap, y: baseY + (1 - b2) * 36), font: fBig, color: Palette.purpleSoft(b2), tracking: -3.8)
             }
             if b3 > 0 {
-                c.drawText(
-                    w3,
-                    at: CGPoint(x: startX + s1.width + gap + s2.width + gap, y: baseY + (1 - b3) * 42),
-                    font: fBig,
-                    color: Palette.white(b3),
-                    tracking: -3.8
-                )
+                c.drawText(w3, at: CGPoint(x: startX + s1.width + gap + s2.width + gap, y: baseY + (1 - b3) * 36), font: fBig, color: Palette.white(b3), tracking: -3.8)
             }
 
-            let subP = easeOutQuint(prog(local, 1.52, 0.50))
+            let subP = easeOutQuint(prog(local, 1.35, 0.45))
             if subP > 0 {
                 c.drawText(
                     "Private. Offline. Non-destructive. Zero cloud uploads, zero accounts, zero telemetry.",
-                    at: CGPoint(x: 960, y: 632 + (1 - subP) * 18),
+                    at: CGPoint(x: 960, y: 622 + (1 - subP) * 16),
                     font: fonts.sans(25, medium: false),
-                    color: Palette.white(0.60 * subP),
+                    color: Palette.white(0.66 * subP),
                     tracking: -0.3,
                     align: .center
                 )
@@ -648,17 +707,20 @@ struct LaunchFilmDirector {
         }
     }
 
-    // MARK: Act 2 (4.2s - 11.8s, dur 7.6s): Simulated macOS Desktop -> Drag -> Shift Radial Wheel -> Notch Companion -> Atomic PNG
+    // MARK: Act 2 (3.8s - 12.0s): Interactive Desktop -> Radial Wheel Bloom -> Drop -> Notch Success
     private func renderAct2InteractiveDesktop(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.bgObsidian)
-        c.drawGrid(lineAlpha: 0.024)
-        c.drawRadialSpotlight(cx: 960, cy: 540, radius: 740, alpha: 0.18)
+        let drift = t * 8.0
+        c.drawGrid(lineAlpha: 0.026, driftX: drift, driftY: drift * 0.4)
+        c.drawRadialSpotlight(cx: 960, cy: 520, radius: 760, alpha: 0.20)
 
-        let winEnter = easeOutQuint(prog(t, 0.0, 0.55))
-        let winScale = lerp(0.96, 1.0, winEnter)
+        // Floating Finder window with subtle physics levitation
+        let floatY = sin(Double(t) * 1.8) * 4.0
+        let winEnter = springPop(prog(t, 0.0, 0.50))
+        let winScale = lerp(0.95, 1.0, winEnter)
         let winW: CGFloat = 1660 * winScale
-        let winH: CGFloat = 900 * winScale
-        let winRect = CGRect(x: 960 - winW / 2, y: 552 - winH / 2, width: winW, height: winH)
+        let winH: CGFloat = 860 * winScale
+        let winRect = CGRect(x: 960 - winW / 2, y: 516 - winH / 2 + CGFloat(floatY), width: winW, height: winH)
 
         c.drawBox(
             winRect,
@@ -666,12 +728,12 @@ struct LaunchFilmDirector {
             fill: Palette.surface1,
             stroke: Palette.white(0.12),
             lineWidth: 1.5,
-            shadowAlpha: 0.72,
-            shadowBlur: 60,
-            shadowY: 24
+            shadowAlpha: 0.75,
+            shadowBlur: 64,
+            shadowY: 26
         )
 
-        // Menu Bar inside simulated Mac screen
+        // Window Titlebar
         let barRect = CGRect(x: winRect.minX + 1.5, y: winRect.minY + 1.5, width: winRect.width - 3, height: 54)
         c.ctx.saveGState()
         c.ctx.addPath(c.roundedRectPath(winRect, radius: 26))
@@ -684,50 +746,46 @@ struct LaunchFilmDirector {
         c.ctx.addLine(to: CGPoint(x: barRect.maxX, y: barRect.maxY))
         c.ctx.strokePath()
 
-        // Traffic lights & Finder menu items
         for i in 0..<3 {
-            c.ctx.setFillColor(Palette.white(0.18).cgColor)
+            c.ctx.setFillColor(Palette.white(0.20).cgColor)
             c.ctx.fillEllipse(in: CGRect(x: barRect.minX + 24 + CGFloat(i) * 20, y: barRect.midY - 6, width: 12, height: 12))
         }
         c.drawText("Finder", at: CGPoint(x: barRect.minX + 98, y: barRect.minY + 17), font: fonts.sans(15, medium: true), color: Palette.white(0.85))
         c.drawText("File    Edit    View    Go", at: CGPoint(x: barRect.minX + 164, y: barRect.minY + 17), font: fonts.sans(15), color: Palette.white(0.42))
 
-        // Right menu bar Docyo penguin status item
         c.drawImage(avatar, in: CGRect(x: barRect.maxX - 156, y: barRect.midY - 12, width: 24, height: 24))
         c.drawText("Docyo  LOCAL", at: CGPoint(x: barRect.maxX - 124, y: barRect.minY + 18), font: fonts.mono(13, semibold: true), color: Palette.white(0.75))
 
-        // Timeline events inside Act 2 (t = 0 .. 7.6s):
-        // 0.3 -> 1.1s : cursor moves to photo.heic
-        // 1.2s        : pointer down & starts dragging toward center (960, 565)
-        // 1.4s        : [ ⇧ Shift ] pressed -> Radial Wheel blooms open!
-        // 2.3 -> 3.6s : cursor hovers onto wedge 0 / 1 ("PNG")
-        // 3.8s        : cursor releases on PNG!
-        // 3.8 -> 5.7s : Notch Companion runs RECEIVED -> PROCESSING (0->100%) -> SUCCESS
-        // 5.5 -> 7.6s : Atomic output card photo.png glows on right!
+        // Timeline milestones:
+        // t=1.00s (shift key down)
+        // t=1.60s (wheel blooms open with 35° rotation spin!)
+        // t=3.35s (cursor hovers PNG wedge)
+        // t=3.80s (DROP!)
+        // t=3.85..5.90s (Notch progress 0% -> 100%)
+        // t=6.00s (SUCCESS CHIME & checkmark!)
+        let shiftHeld = t >= 1.00 && t < 3.90
+        let wheelOpen = prog(t, 1.58, 0.50)
+        let hoverPNG  = t >= 3.20 && t < 3.80
+        let dropped   = t >= 3.80
+        let convProg  = clamp((t - 3.85) / 2.05)
+        let convDone  = t >= 6.00
 
-        let shiftHeld = t >= 1.35 && t < 4.15
-        let wheelOpen = prog(t, 1.38, 0.52)
-        let dropped   = t >= 3.85
-        let hoverPNG  = t >= 2.45 && !dropped
-        let convProg  = clamp((t - 3.90) / 1.65) // 0 -> 1 between 3.90s and 5.55s
-        let convDone  = t >= 5.55
-
-        // MacBook Notch Companion State
-        let notchExpanded = t >= 1.45
-        let notchExpandP = easeOutQuint(prog(t, 1.45, 0.42))
-        let notchW = lerp(220, 420, notchExpandP)
-        let notchH = lerp(42, 60, notchExpandP)
+        // MacBook Notch Companion Dropdown
+        let notchExpanded = t >= 1.80
+        let notchExpandP = springPop(prog(t, 1.80, 0.45))
+        let notchW = lerp(220, 440, notchExpandP)
+        let notchH = lerp(42, 64, notchExpandP)
         let notchRect = CGRect(x: 960 - notchW / 2, y: winRect.minY, width: notchW, height: notchH)
 
         c.drawBox(
             notchRect,
             radius: 18,
             fill: Palette.pureBlack,
-            stroke: convDone ? Palette.purple(0.70) : Palette.white(0.16),
+            stroke: convDone ? Palette.purple(0.80) : Palette.white(0.16),
             lineWidth: 1.5,
             shadowAlpha: 0.85,
-            shadowBlur: 28,
-            shadowY: 8
+            shadowBlur: 30,
+            shadowY: 10
         )
 
         let phaseTag: String
@@ -738,7 +796,7 @@ struct LaunchFilmDirector {
         } else if !dropped {
             phaseTag = "WATCHING"
             phaseCaption = hoverPNG ? "Looking at PNG (.png)" : "Choose a format — I'm ready"
-        } else if convProg < 0.22 {
+        } else if convProg < 0.20 {
             phaseTag = "RECEIVED"
             phaseCaption = "Got photo.heic!"
         } else if !convDone {
@@ -749,73 +807,41 @@ struct LaunchFilmDirector {
             phaseCaption = "Done. photo.png is ready."
         }
 
-        // Penguin Mascot inside Notch Companion
-        let mascotSize: CGFloat = notchExpanded ? 38 : 26
-        let mascotBounce: CGFloat = convDone ? -3 * sin(clamp((t - 5.55) * 4) * .pi) : 0
+        // Mascot eye bounce / happy reaction
+        let mascotBounce: CGFloat = convDone ? -4 * abs(sin(clamp((t - 6.00) * 4) * .pi)) : (dropped && !convDone ? sin(t * 12) * 1.5 : 0)
         c.drawImage(
             avatar,
-            in: CGRect(
-                x: notchRect.minX + 16,
-                y: notchRect.midY - mascotSize / 2 + mascotBounce,
-                width: mascotSize,
-                height: mascotSize
-            )
+            in: CGRect(x: notchRect.minX + 16, y: notchRect.midY - 18 + mascotBounce, width: 36, height: 36)
         )
 
         if notchExpanded {
-            c.drawText(
-                phaseTag,
-                at: CGPoint(x: notchRect.minX + 64, y: notchRect.minY + 11),
-                font: fonts.mono(11, semibold: true),
-                color: Palette.purpleSoft,
-                tracking: 1.2
-            )
-            c.drawText(
-                phaseCaption,
-                at: CGPoint(x: notchRect.minX + 64, y: notchRect.minY + 29),
-                font: fonts.sans(14.5, medium: true),
-                color: Palette.white(0.92)
-            )
+            c.drawText(phaseTag, at: CGPoint(x: notchRect.minX + 64, y: notchRect.minY + 12), font: fonts.mono(11, semibold: true), color: Palette.purpleSoft, tracking: 1.2)
+            c.drawText(phaseCaption, at: CGPoint(x: notchRect.minX + 64, y: notchRect.minY + 32), font: fonts.sans(14.5, medium: true), color: Palette.white(0.92))
 
-            // Progress ring or checkmark on right of Notch
             let ringCenter = CGPoint(x: notchRect.maxX - 30, y: notchRect.midY)
             if dropped && !convDone {
                 c.ctx.saveGState()
                 c.ctx.setStrokeColor(Palette.white(0.16).cgColor)
                 c.ctx.setLineWidth(3)
                 c.ctx.strokeEllipse(in: CGRect(x: ringCenter.x - 12, y: ringCenter.y - 12, width: 24, height: 24))
-
                 c.ctx.setStrokeColor(Palette.purple.cgColor)
                 c.ctx.setLineWidth(3)
                 c.ctx.setLineCap(.round)
-                c.ctx.addArc(
-                    center: ringCenter,
-                    radius: 12,
-                    startAngle: -.pi / 2,
-                    endAngle: -.pi / 2 + (.pi * 2 * convProg),
-                    clockwise: false
-                )
+                c.ctx.addArc(center: ringCenter, radius: 12, startAngle: -.pi / 2, endAngle: -.pi / 2 + (.pi * 2 * convProg), clockwise: false)
                 c.ctx.strokePath()
                 c.ctx.restoreGState()
             } else if convDone {
                 c.ctx.saveGState()
-                c.ctx.setFillColor(Palette.purple(0.28).cgColor)
+                c.ctx.setFillColor(Palette.purple(0.30).cgColor)
                 c.ctx.fillEllipse(in: CGRect(x: ringCenter.x - 13, y: ringCenter.y - 13, width: 26, height: 26))
                 c.ctx.restoreGState()
                 c.drawCheckmark(center: ringCenter, size: 14, color: Palette.purpleSoft, lineWidth: 2.2)
             }
-        } else {
-            c.drawText(
-                "Docyo Notch",
-                at: CGPoint(x: notchRect.minX + 52, y: notchRect.minY + 12),
-                font: fonts.mono(12.5, semibold: true),
-                color: Palette.white(0.75)
-            )
         }
 
-        // Zone 1 (Left): Finder Selection Cards
+        // Left Finder Cards
         let leftX = winRect.minX + 58
-        let zoneTop = winRect.minY + 132
+        let zoneTop = winRect.minY + 122
         c.drawText("01 · FINDER SELECTION", at: CGPoint(x: leftX, y: zoneTop), font: fonts.mono(12.5, semibold: true), color: Palette.white(0.45), tracking: 1.4)
 
         let files: [(String, String, String, Bool)] = [
@@ -823,89 +849,78 @@ struct LaunchFilmDirector {
             ("board-deck.pdf", "11.8 MB · 24 pages", ".PDF", false),
             ("screen-demo.mov", "38.0 MB · 4K 60fps", ".MOV", false)
         ]
-
         for (idx, f) in files.enumerated() {
-            let cardY = zoneTop + 36 + CGFloat(idx) * 102
-            let cardRect = CGRect(x: leftX, y: cardY, width: 410, height: 86)
-            let isPicked = f.3 && t >= 1.15 && !dropped
+            let cardY = zoneTop + 34 + CGFloat(idx) * 100
+            let cardRect = CGRect(x: leftX, y: cardY, width: 410, height: 84)
+            let isPicked = f.3 && t >= 0.80 && !dropped
             c.drawBox(
                 cardRect,
                 radius: 16,
-                fill: f.3 ? Palette.surface2.withAlphaComponent(isPicked ? 0.55 : 1.0) : Palette.bgObsidian.withAlphaComponent(0.75),
+                fill: f.3 ? Palette.surface2.withAlphaComponent(isPicked ? 0.50 : 1.0) : Palette.bgObsidian.withAlphaComponent(0.75),
                 stroke: f.3 ? Palette.purple(0.65) : Palette.white(0.08),
                 lineWidth: f.3 ? 1.8 : 1.2
             )
-            // Extension badge
             let badgeRect = CGRect(x: cardRect.maxX - 78, y: cardRect.midY - 14, width: 58, height: 28)
             c.drawBox(badgeRect, radius: 7, fill: f.3 ? Palette.purple(0.18) : Palette.surface1, stroke: f.3 ? Palette.purple(0.45) : Palette.white(0.1))
             c.drawText(f.2, at: CGPoint(x: badgeRect.midX, y: badgeRect.minY + 6), font: fonts.mono(11.5, semibold: true), color: f.3 ? Palette.purpleSoft : Palette.white(0.5), align: .center)
-
-            c.drawText(f.0, at: CGPoint(x: cardRect.minX + 22, y: cardRect.minY + 19), font: fonts.mono(17, semibold: true), color: Palette.white(isPicked ? 0.55 : 0.95))
-            c.drawText(f.1, at: CGPoint(x: cardRect.minX + 22, y: cardRect.minY + 46), font: fonts.mono(12.5), color: Palette.white(0.45))
+            c.drawText(f.0, at: CGPoint(x: cardRect.minX + 22, y: cardRect.minY + 18), font: fonts.mono(17, semibold: true), color: Palette.white(isPicked ? 0.55 : 0.95))
+            c.drawText(f.1, at: CGPoint(x: cardRect.minX + 22, y: cardRect.minY + 45), font: fonts.mono(12.5), color: Palette.white(0.45))
         }
 
-        // Tactile Modifier Keycap HUD at bottom-left of desktop
-        let keycapP = springPop(prog(t, 1.32, 0.45))
+        // Shift Key Indicator
+        let keycapP = springPop(prog(t, 0.95, 0.45))
         if keycapP > 0.01 {
-            let kcRect = CGRect(x: leftX, y: winRect.maxY - 116, width: 326, height: 62)
+            let kcRect = CGRect(x: leftX, y: winRect.maxY - 106, width: 326, height: 60)
             c.drawBox(
                 kcRect,
                 radius: 14,
-                fill: shiftHeld ? Palette.purple(0.20) : Palette.bgObsidian,
+                fill: shiftHeld ? Palette.purple(0.22) : Palette.bgObsidian,
                 stroke: shiftHeld ? Palette.purpleSoft : Palette.white(0.14),
                 lineWidth: shiftHeld ? 2.0 : 1.2
             )
             c.drawText(
                 shiftHeld ? "⇧ SHIFT HELD" : "⇧ SHIFT RELEASED",
-                at: CGPoint(x: kcRect.minX + 20, y: kcRect.minY + 13),
+                at: CGPoint(x: kcRect.minX + 20, y: kcRect.minY + 12),
                 font: fonts.mono(13, semibold: true),
                 color: shiftHeld ? Palette.purpleSoft : Palette.white(0.55),
                 tracking: 1.0
             )
             c.drawText(
                 shiftHeld ? "Radial Convert Wheel Active" : "Dropped onto PNG wedge",
-                at: CGPoint(x: kcRect.minX + 20, y: kcRect.minY + 34),
+                at: CGPoint(x: kcRect.minX + 20, y: kcRect.minY + 33),
                 font: fonts.sans(13.5, medium: false),
                 color: Palette.white(0.75)
             )
         }
 
-        // Zone 2 (Center): Physical 6-Wedge Radial Wheel
-        let wheelCenter = CGPoint(x: 960, y: 560)
+        // Center Radial Wheel with dynamic spin bloom
+        let wheelCenter = CGPoint(x: 960, y: 534)
         let wedges: [(String, String)] = [
-            ("PNG", ".png"),
-            ("JPEG", ".jpg"),
-            ("WEBP", ".webp"),
-            ("AVIF", ".avif"),
-            ("PDF", ".pdf"),
-            ("TIFF", ".tiff")
+            ("PNG", ".png"), ("JPEG", ".jpg"), ("WEBP", ".webp"),
+            ("AVIF", ".avif"), ("PDF", ".pdf"), ("TIFF", ".tiff")
         ]
 
-        // Guide ring
-        c.ctx.saveGState()
-        c.ctx.setStrokeColor(Palette.white(0.06).cgColor)
-        c.ctx.setLineWidth(1.2)
-        c.ctx.setLineDash(phase: 0, lengths: [4, 6])
-        c.ctx.strokeEllipse(in: CGRect(x: wheelCenter.x - 206, y: wheelCenter.y - 206, width: 412, height: 412))
-        c.ctx.restoreGState()
-
         if wheelOpen > 0.01 {
-            c.drawRadialSpotlight(cx: wheelCenter.x, cy: wheelCenter.y, radius: 260, alpha: 0.25 * easeOutQuint(wheelOpen))
+            c.drawRadialSpotlight(cx: wheelCenter.x, cy: wheelCenter.y, radius: 270, alpha: 0.28 * easeOutQuint(wheelOpen))
+            // Rotational momentum settling: -0.6 rad -> 0 rad
+            let rotInertia = (1.0 - easeOutQuint(prog(t, 1.58, 0.65))) * -0.65
+
             for (idx, w) in wedges.enumerated() {
-                let stagger = springPop(prog(t, 1.38 + CGFloat(idx) * 0.035, 0.48))
-                let isTarget = idx == 0 && (hoverPNG || (dropped && t < 5.7))
-                let pushP = isTarget ? easeOutQuint(prog(t, 2.45, 0.25)) * 11.0 : 0
+                let stagger = springPop(prog(t, 1.58 + CGFloat(idx) * 0.035, 0.48))
+                let isTarget = idx == 0 && (hoverPNG || (dropped && t < 6.2))
+                let pushP = isTarget ? easeOutQuint(prog(t, 3.20, 0.25)) * 12.0 : 0
                 c.drawAnnularWedge(
                     cx: wheelCenter.x,
                     cy: wheelCenter.y,
-                    rInner: 82,
-                    rOuter: 192,
+                    rInner: 80,
+                    rOuter: 188,
                     index: idx,
                     count: wedges.count,
+                    rotationOffset: rotInertia,
                     gapPx: 8,
                     pushOut: pushP,
                     scale: stagger,
-                    fill: isTarget ? Palette.purple(0.36) : Palette.surface2.withAlphaComponent(0.95),
+                    fill: isTarget ? Palette.purple(0.38) : Palette.surface2.withAlphaComponent(0.95),
                     stroke: isTarget ? Palette.purpleSoft : Palette.white(0.13),
                     lineWidth: isTarget ? 2.4 : 1.3,
                     label: w.0,
@@ -916,11 +931,10 @@ struct LaunchFilmDirector {
             }
         }
 
-        // Center Hub
-        let hubR: CGFloat = 70
-        let hubRect = CGRect(x: wheelCenter.x - hubR, y: wheelCenter.y - hubR, width: hubR * 2, height: hubR * 2)
+        // Center Hub with dynamic progress ring
+        let hubR: CGFloat = 68
         c.drawBox(
-            hubRect,
+            CGRect(x: wheelCenter.x - hubR, y: wheelCenter.y - hubR, width: hubR * 2, height: hubR * 2),
             radius: hubR,
             fill: Palette.bgObsidian,
             stroke: (hoverPNG || dropped) ? Palette.purple(0.75) : Palette.white(0.15),
@@ -929,88 +943,60 @@ struct LaunchFilmDirector {
         if dropped && !convDone {
             c.ctx.saveGState()
             c.ctx.setStrokeColor(Palette.purple.cgColor)
-            c.ctx.setLineWidth(3.5)
+            c.ctx.setLineWidth(4.0)
             c.ctx.setLineCap(.round)
-            c.ctx.addArc(
-                center: wheelCenter,
-                radius: hubR,
-                startAngle: -.pi / 2,
-                endAngle: -.pi / 2 + (.pi * 2 * convProg),
-                clockwise: false
-            )
+            c.ctx.addArc(center: wheelCenter, radius: hubR, startAngle: -.pi / 2, endAngle: -.pi / 2 + (.pi * 2 * convProg), clockwise: false)
             c.ctx.strokePath()
             c.ctx.restoreGState()
         }
-        c.drawImage(avatar, in: CGRect(x: wheelCenter.x - 23, y: wheelCenter.y - 46, width: 46, height: 46))
-        c.drawText(
-            hoverPNG || dropped ? ".HEIC → PNG" : "photo.heic",
-            at: CGPoint(x: wheelCenter.x, y: wheelCenter.y + 8),
-            font: fonts.mono(13.5, semibold: true),
-            color: Palette.pureWhite,
-            align: .center
-        )
-        c.drawText(
-            convDone ? "Saved ✓" : (dropped ? "\(Int(convProg * 100))%" : "⇧ Shift wheel"),
-            at: CGPoint(x: wheelCenter.x, y: wheelCenter.y + 28),
-            font: fonts.mono(11.5),
-            color: Palette.purpleSoft,
-            align: .center
-        )
+        c.drawImage(avatar, in: CGRect(x: wheelCenter.x - 22, y: wheelCenter.y - 45, width: 44, height: 44))
+        c.drawText(hoverPNG || dropped ? ".HEIC → PNG" : "photo.heic", at: CGPoint(x: wheelCenter.x, y: wheelCenter.y + 8), font: fonts.mono(13.5, semibold: true), color: Palette.pureWhite, align: .center)
+        c.drawText(convDone ? "Saved ✓" : (dropped ? "\(Int(convProg * 100))%" : "⇧ Shift wheel"), at: CGPoint(x: wheelCenter.x, y: wheelCenter.y + 27), font: fonts.mono(11.5), color: Palette.purpleSoft, align: .center)
 
-        // Drop shockwave ring at t = 3.85s
-        let rippleP = prog(t, 3.85, 0.55)
+        // Drop Shockwave Ripple Rings
+        let rippleP = prog(t, 3.80, 0.65)
         if rippleP > 0 && rippleP < 1 {
-            let rr = lerp(80, 235, easeOutQuint(rippleP))
+            let rr1 = lerp(80, 260, easeOutQuint(rippleP))
+            let rr2 = lerp(60, 200, easeOutQuint(rippleP))
             c.ctx.saveGState()
             c.ctx.setStrokeColor(Palette.purpleSoft(1 - rippleP).cgColor)
             c.ctx.setLineWidth(2.5)
-            c.ctx.strokeEllipse(in: CGRect(x: wheelCenter.x - rr, y: wheelCenter.y - 135 - rr * 0.15 + 135, width: rr * 2, height: rr * 2))
+            c.ctx.strokeEllipse(in: CGRect(x: wheelCenter.x - rr1, y: wheelCenter.y - rr1, width: rr1 * 2, height: rr1 * 2))
+            c.ctx.setStrokeColor(Palette.purple((1 - rippleP) * 0.7).cgColor)
+            c.ctx.strokeEllipse(in: CGRect(x: wheelCenter.x - rr2, y: wheelCenter.y - rr2, width: rr2 * 2, height: rr2 * 2))
             c.ctx.restoreGState()
         }
 
-        // Zone 3 (Right): Local Disk Output Inspector
+        // Right Local Output Card
         let rightX = winRect.maxX - 468
         c.drawText("02 · LOCAL DISK OUTPUT (~/Desktop)", at: CGPoint(x: rightX, y: zoneTop), font: fonts.mono(12.5, semibold: true), color: Palette.white(0.45), tracking: 1.2)
 
-        let outPanel = CGRect(x: rightX, y: zoneTop + 36, width: 410, height: 286)
+        let outPanel = CGRect(x: rightX, y: zoneTop + 34, width: 410, height: 282)
         c.drawBox(outPanel, radius: 18, fill: Palette.bgObsidian.withAlphaComponent(0.85), stroke: Palette.white(0.10), lineWidth: 1.4)
 
-        // Untouched original row
-        let origBox = CGRect(x: outPanel.minX + 20, y: outPanel.minY + 20, width: 370, height: 84)
+        let origBox = CGRect(x: outPanel.minX + 20, y: outPanel.minY + 20, width: 370, height: 82)
         c.drawBox(origBox, radius: 13, fill: Palette.surface1, stroke: Palette.white(0.08), lineWidth: 1.2)
-        c.drawText("photo.heic", at: CGPoint(x: origBox.minX + 18, y: origBox.minY + 18), font: fonts.mono(16, semibold: true), color: Palette.white(0.82))
-        c.drawText("Original source file", at: CGPoint(x: origBox.minX + 18, y: origBox.minY + 44), font: fonts.mono(12), color: Palette.white(0.42))
+        c.drawText("photo.heic", at: CGPoint(x: origBox.minX + 18, y: origBox.minY + 17), font: fonts.mono(16, semibold: true), color: Palette.white(0.82))
+        c.drawText("Original source file", at: CGPoint(x: origBox.minX + 18, y: origBox.minY + 43), font: fonts.mono(12), color: Palette.white(0.42))
         let untouchBadge = CGRect(x: origBox.maxX - 118, y: origBox.midY - 14, width: 100, height: 28)
         c.drawBox(untouchBadge, radius: 7, fill: Palette.surface2, stroke: Palette.white(0.12))
         c.drawText("UNTOUCHED", at: CGPoint(x: untouchBadge.midX, y: untouchBadge.minY + 6), font: fonts.mono(11, semibold: true), color: Palette.white(0.70), align: .center)
 
-        // Pipeline status divider
         let pipeLabel = convDone ? "HEIC → PNG · Atomic commit" : (dropped ? "Staging .docyo-tmp (\(Int(convProg * 100))%)" : "Waiting for drop…")
-        c.drawText(pipeLabel, at: CGPoint(x: outPanel.midX, y: outPanel.minY + 124), font: fonts.mono(12, semibold: true), color: Palette.purpleSoft, align: .center)
+        c.drawText(pipeLabel, at: CGPoint(x: outPanel.midX, y: outPanel.minY + 122), font: fonts.mono(12, semibold: true), color: Palette.purpleSoft, align: .center)
 
-        // Converted Output Card (animates from staging to glowing finished card!)
-        let resAppear = easeOutQuint(prog(t, 4.0, 0.5))
-        let doneGlow = easeOutQuint(prog(t, 5.55, 0.45))
-        let resBox = CGRect(x: outPanel.minX + 20, y: outPanel.minY + 162 + (1 - resAppear) * 14, width: 370, height: 102)
+        let resAppear = springPop(prog(t, 3.85, 0.5))
+        let doneGlow = easeOutQuint(prog(t, 6.00, 0.45))
+        let resBox = CGRect(x: outPanel.minX + 20, y: outPanel.minY + 160 + (1 - resAppear) * 14, width: 370, height: 100)
         c.drawBox(
             resBox,
             radius: 14,
-            fill: convDone ? Palette.purple(0.14) : Palette.surface1.withAlphaComponent(0.6),
-            stroke: convDone ? Palette.purple(0.80) : Palette.white(0.08),
+            fill: convDone ? Palette.purple(0.16) : Palette.surface1.withAlphaComponent(0.6),
+            stroke: convDone ? Palette.purple(0.85) : Palette.white(0.08),
             lineWidth: convDone ? 2.0 : 1.2
         )
-        c.drawText(
-            convDone ? "photo.png" : (dropped ? ".docyo-8a3f.tmp" : "—"),
-            at: CGPoint(x: resBox.minX + 18, y: resBox.minY + 22),
-            font: fonts.mono(19, semibold: true),
-            color: convDone ? Palette.pureWhite : Palette.white(0.55)
-        )
-        c.drawText(
-            convDone ? "6.1 MB · Lossless RGBA · Ready" : (dropped ? "Atomic staging buffer…" : "Drop file on wheel to convert"),
-            at: CGPoint(x: resBox.minX + 18, y: resBox.minY + 54),
-            font: fonts.mono(12.5),
-            color: convDone ? Palette.purpleSoft : Palette.white(0.38)
-        )
+        c.drawText(convDone ? "photo.png" : (dropped ? ".docyo-8a3f.tmp" : "—"), at: CGPoint(x: resBox.minX + 18, y: resBox.minY + 21), font: fonts.mono(19, semibold: true), color: convDone ? Palette.pureWhite : Palette.white(0.55))
+        c.drawText(convDone ? "6.1 MB · Lossless RGBA · Ready" : (dropped ? "Atomic staging buffer…" : "Drop file on wheel to convert"), at: CGPoint(x: resBox.minX + 18, y: resBox.minY + 53), font: fonts.mono(12.5), color: convDone ? Palette.purpleSoft : Palette.white(0.38))
         if doneGlow > 0.05 {
             let chkCenter = CGPoint(x: resBox.maxX - 36, y: resBox.midY)
             c.ctx.saveGState()
@@ -1020,40 +1006,30 @@ struct LaunchFilmDirector {
             c.drawCheckmark(center: chkCenter, size: 18, color: Palette.pureWhite.withAlphaComponent(doneGlow), lineWidth: 2.5)
         }
 
-        // Animated Cursor & Dragged File Ghost Chip
-        let startPt = CGPoint(x: leftX + 210, y: zoneTop + 80)
+        // Animated Mouse Cursor with Dynamic Bezier Path
+        let startPt = CGPoint(x: leftX + 210, y: zoneTop + 76)
         let centerPt = CGPoint(x: wheelCenter.x - 18, y: wheelCenter.y + 12)
-        let pngWedgePt = CGPoint(x: wheelCenter.x, y: wheelCenter.y - 136) // 12 o'clock wedge 0 ("PNG")
-        let restPt = CGPoint(x: wheelCenter.x + 125, y: wheelCenter.y + 115)
+        let pngWedgePt = CGPoint(x: wheelCenter.x, y: wheelCenter.y - 134)
+        let restPt = CGPoint(x: wheelCenter.x + 130, y: wheelCenter.y + 120)
 
         var cursorPt = CGPoint(x: leftX + 90, y: zoneTop + 210)
-        if t < 1.15 {
-            let p = easeInOutCubic(prog(t, 0.25, 0.85))
-            cursorPt = CGPoint(x: lerp(leftX + 80, startPt.x, p), y: lerp(zoneTop + 240, startPt.y, p))
-        } else if t < 2.25 {
-            let p = easeInOutCubic(prog(t, 1.15, 1.05))
+        if t < 0.80 {
+            let p = easeInOutCubic(prog(t, 0.15, 0.65))
+            cursorPt = CGPoint(x: lerp(leftX + 80, startPt.x, p), y: lerp(zoneTop + 230, startPt.y, p))
+        } else if t < 2.30 {
+            let p = easeInOutCubic(prog(t, 0.80, 1.45))
             cursorPt = CGPoint(x: lerp(startPt.x, centerPt.x, p), y: lerp(startPt.y, centerPt.y, p))
-        } else if t < 3.85 {
-            let p = easeInOutCubic(prog(t, 2.25, 0.75))
+        } else if t < 3.80 {
+            let p = easeInOutCubic(prog(t, 2.30, 0.90))
             cursorPt = CGPoint(x: lerp(centerPt.x, pngWedgePt.x, p), y: lerp(centerPt.y, pngWedgePt.y, p))
         } else {
-            let p = easeOutQuint(prog(t, 3.85, 0.75))
+            let p = easeOutQuint(prog(t, 3.80, 0.70))
             cursorPt = CGPoint(x: lerp(pngWedgePt.x, restPt.x, p), y: lerp(pngWedgePt.y, restPt.y, p))
         }
 
-        // Floating dragged file chip while dragging (1.15s .. 3.85s)
-        if t >= 1.15 && !dropped {
+        if t >= 0.80 && !dropped {
             let ghostRect = CGRect(x: cursorPt.x - 95, y: cursorPt.y - 54, width: 224, height: 48)
-            c.drawBox(
-                ghostRect,
-                radius: 13,
-                fill: Palette.surface2.withAlphaComponent(0.96),
-                stroke: Palette.purpleSoft,
-                lineWidth: 1.8,
-                shadowAlpha: 0.75,
-                shadowBlur: 24,
-                shadowY: 10
-            )
+            c.drawBox(ghostRect, radius: 13, fill: Palette.surface2.withAlphaComponent(0.96), stroke: Palette.purpleSoft, lineWidth: 1.8, shadowAlpha: 0.75, shadowBlur: 24, shadowY: 10)
             c.drawText("photo.heic", at: CGPoint(x: ghostRect.minX + 16, y: ghostRect.minY + 13), font: fonts.mono(14.5, semibold: true), color: Palette.pureWhite)
             if hoverPNG {
                 let tagR = CGRect(x: ghostRect.maxX - 76, y: ghostRect.midY - 12, width: 62, height: 24)
@@ -1062,37 +1038,28 @@ struct LaunchFilmDirector {
             }
         }
 
-        c.drawCursor(at: cursorPt, pressed: t >= 1.15 && !dropped)
-        c.ctx.restoreGState()
+        c.drawCursor(at: cursorPt, pressed: t >= 0.80 && !dropped)
     }
 
-    // MARK: Act 3 (11.8s - 16.6s, dur 4.8s): Three Modifier Rings & 25 Built-in Single-Purpose Tools
+    // MARK: Act 3 (12.0s - 17.5s, dur 5.5s): Three Modifier Rings & 25 Built-In Tools
     private func renderAct3ModifierRingsAndTools(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.bgObsidian)
-        c.drawGrid(lineAlpha: 0.03)
-        c.drawRadialSpotlight(cx: 520, cy: 560, radius: 620, alpha: 0.20)
+        let drift = t * 12.0
+        c.drawGrid(lineAlpha: 0.03, driftX: drift, driftY: drift * 0.3)
+        c.drawRadialSpotlight(cx: 520, cy: 520, radius: 620, alpha: 0.22)
 
-        let headP = easeOutQuint(prog(t, 0.0, 0.5))
-        c.drawText(
-            "01 / THREE MODIFIER RINGS · 25 BUILT-IN TOOLS",
-            at: CGPoint(x: 110, y: 88 + (1 - headP) * 18),
-            font: fonts.mono(14, semibold: true),
-            color: Palette.purpleSoft(headP),
-            tracking: 2.2
-        )
-        c.drawText(
-            "One drag from Finder. Zero timeline bloat.",
-            at: CGPoint(x: 110, y: 122 + (1 - headP) * 18),
-            font: fonts.display(58, bold: true),
-            color: Palette.white(headP),
-            tracking: -2.0
-        )
+        let headP = easeOutQuint(prog(t, 0.0, 0.45))
+        c.drawText("01 / THREE MODIFIER RINGS · 25 BUILT-IN TOOLS", at: CGPoint(x: 110, y: 74 + (1 - headP) * 16), font: fonts.mono(14, semibold: true), color: Palette.purpleSoft(headP), tracking: 2.2)
+        c.drawText("One drag from Finder. Zero timeline bloat.", at: CGPoint(x: 110, y: 108 + (1 - headP) * 16), font: fonts.display(56, bold: true), color: Palette.white(headP), tracking: -2.0)
 
-        // Active modifier steps: 0 -> Shift (0..1.45s), 1 -> Opt+Shift (1.45..3.15s), 2 -> Ctrl (3.15..4.8s)
-        let activeMod: Int = t < 1.45 ? 0 : (t < 3.15 ? 1 : 2)
+        // Switching between 3 modifier rings with rotational snap:
+        // 0.0 .. 1.8s: Shift (Convert)
+        // 1.8 .. 3.6s: Option+Shift (25 Tools)
+        // 3.6 .. 5.5s: Control (Actions)
+        let activeMod: Int = t < 1.80 ? 0 : (t < 3.60 ? 1 : 2)
+        let ringRotAngle = CGFloat(activeMod) * 1.05 // Dynamic 60° rotation inertia per switch
 
-        // Left Card: Modifier Selector + Dynamic Wheel Preview
-        let leftCard = CGRect(x: 110, y: 230, width: 820, height: 740)
+        let leftCard = CGRect(x: 110, y: 206, width: 820, height: 760)
         c.drawBox(leftCard, radius: 24, fill: Palette.surface1, stroke: Palette.white(0.10), lineWidth: 1.5)
 
         let modSpecs: [(String, String, String)] = [
@@ -1100,24 +1067,16 @@ struct LaunchFilmDirector {
             ("⌥⇧ Opt + Shift", "25 Built-In Tools", "Trim, Crop, Merge PDF, OCR, Redact"),
             ("⌃ Control", "Instant File Actions", "Duplicate, Copy Path, SHA-256")
         ]
-
         for (i, m) in modSpecs.enumerated() {
-            let rowRect = CGRect(x: leftCard.minX + 36, y: leftCard.minY + 38 + CGFloat(i) * 86, width: 748, height: 72)
+            let rowRect = CGRect(x: leftCard.minX + 36, y: leftCard.minY + 34 + CGFloat(i) * 84, width: 748, height: 70)
             let isAct = i == activeMod
-            c.drawBox(
-                rowRect,
-                radius: 14,
-                fill: isAct ? Palette.purple(0.18) : Palette.bgObsidian,
-                stroke: isAct ? Palette.purple(0.75) : Palette.white(0.08),
-                lineWidth: isAct ? 2.0 : 1.2
-            )
-            c.drawText(m.0, at: CGPoint(x: rowRect.minX + 22, y: rowRect.minY + 23), font: fonts.mono(16, semibold: true), color: isAct ? Palette.purpleSoft : Palette.white(0.55))
-            c.drawText(m.1, at: CGPoint(x: rowRect.minX + 215, y: rowRect.minY + 22), font: fonts.display(20, bold: false), color: isAct ? Palette.pureWhite : Palette.white(0.70))
-            c.drawText(m.2, at: CGPoint(x: rowRect.maxX - 22, y: rowRect.minY + 25), font: fonts.mono(13), color: isAct ? Palette.white(0.85) : Palette.white(0.40), align: .right)
+            c.drawBox(rowRect, radius: 14, fill: isAct ? Palette.purple(0.20) : Palette.bgObsidian, stroke: isAct ? Palette.purple(0.75) : Palette.white(0.08), lineWidth: isAct ? 2.0 : 1.2)
+            c.drawText(m.0, at: CGPoint(x: rowRect.minX + 22, y: rowRect.minY + 22), font: fonts.mono(16, semibold: true), color: isAct ? Palette.purpleSoft : Palette.white(0.55))
+            c.drawText(m.1, at: CGPoint(x: rowRect.minX + 215, y: rowRect.minY + 21), font: fonts.display(20, bold: false), color: isAct ? Palette.pureWhite : Palette.white(0.70))
+            c.drawText(m.2, at: CGPoint(x: rowRect.maxX - 22, y: rowRect.minY + 24), font: fonts.mono(13), color: isAct ? Palette.white(0.85) : Palette.white(0.40), align: .right)
         }
 
-        // Morphing Radial Wheel inside Left Card bottom
-        let wc = CGPoint(x: leftCard.midX, y: leftCard.minY + 528)
+        let wc = CGPoint(x: leftCard.midX, y: leftCard.minY + 534)
         let ringLabels: [[String]] = [
             ["PNG", "WEBP", "AVIF", "DOCX", "MP4", "FLAC"],
             ["TRIM", "CROP", "MERGE", "OCR", "REDACT", "EXIF"],
@@ -1133,10 +1092,11 @@ struct LaunchFilmDirector {
                 rOuter: 158,
                 index: idx,
                 count: curLabels.count,
+                rotationOffset: ringRotAngle,
                 gapPx: 7,
                 pushOut: hi ? 8 : 0,
                 scale: 1.0,
-                fill: hi ? Palette.purple(0.34) : Palette.surface2,
+                fill: hi ? Palette.purple(0.36) : Palette.surface2,
                 stroke: hi ? Palette.purpleSoft : Palette.white(0.12),
                 lineWidth: hi ? 2.2 : 1.2,
                 label: lbl,
@@ -1144,29 +1104,22 @@ struct LaunchFilmDirector {
                 isHighlighted: hi
             )
         }
-        c.drawBox(CGRect(x: wc.x - 54, y: wc.y - 54, width: 108, height: 108), radius: 54, fill: Palette.bgObsidian, stroke: Palette.purple(0.6), lineWidth: 1.8)
+        c.drawBox(CGRect(x: wc.x - 54, y: wc.y - 54, width: 108, height: 108), radius: 54, fill: Palette.bgObsidian, stroke: Palette.purple(0.65), lineWidth: 1.8)
         c.drawImage(avatar, in: CGRect(x: wc.x - 20, y: wc.y - 34, width: 40, height: 40))
-        c.drawText(
-            activeMod == 0 ? "CONVERT" : (activeMod == 1 ? "25 TOOLS" : "ACTIONS"),
-            at: CGPoint(x: wc.x, y: wc.y + 12),
-            font: fonts.mono(12, semibold: true),
-            color: Palette.purpleSoft,
-            align: .center
-        )
+        c.drawText(activeMod == 0 ? "CONVERT" : (activeMod == 1 ? "25 TOOLS" : "ACTIONS"), at: CGPoint(x: wc.x, y: wc.y + 12), font: fonts.mono(12, semibold: true), color: Palette.purpleSoft, align: .center)
 
-        // Right Column: Two Bento Micro-Tool Cards (Video Trim Waveform + PDF/Image Redact & Suite)
+        // Right side: Video Trimmer & Tools
         let rightX: CGFloat = 970
-        let card1 = CGRect(x: rightX, y: 230, width: 840, height: 354)
+        let card1 = CGRect(x: rightX, y: 206, width: 840, height: 364)
         c.drawBox(card1, radius: 24, fill: Palette.surface1, stroke: Palette.white(0.10), lineWidth: 1.5)
-        c.drawText("VIDEO & AUDIO SUITE", at: CGPoint(x: card1.minX + 36, y: card1.minY + 34), font: fonts.mono(13, semibold: true), color: Palette.purpleSoft, tracking: 1.5)
-        c.drawText("Trim, crop, speed, join & normalize", at: CGPoint(x: card1.minX + 36, y: card1.minY + 66), font: fonts.display(30), color: Palette.pureWhite, tracking: -0.8)
+        c.drawText("VIDEO & AUDIO SUITE", at: CGPoint(x: card1.minX + 36, y: card1.minY + 32), font: fonts.mono(13, semibold: true), color: Palette.purpleSoft, tracking: 1.5)
+        c.drawText("Trim, crop, speed, join & normalize", at: CGPoint(x: card1.minX + 36, y: card1.minY + 64), font: fonts.display(30), color: Palette.pureWhite, tracking: -0.8)
 
-        // Animated Waveform + Tightening Purple Trim Brackets
-        let waveBox = CGRect(x: card1.minX + 36, y: card1.minY + 132, width: 768, height: 146)
+        let waveBox = CGRect(x: card1.minX + 36, y: card1.minY + 132, width: 768, height: 150)
         c.drawBox(waveBox, radius: 16, fill: Palette.bgObsidian, stroke: Palette.white(0.08))
 
         let heights: [CGFloat] = [28, 52, 40, 74, 88, 62, 94, 70, 48, 84, 92, 58, 78, 64, 90, 72, 50, 82, 68, 44, 76, 56, 36, 48, 30, 62, 44, 26]
-        let trimAnim = easeInOutCubic(prog(t, 0.5, 2.2))
+        let trimAnim = easeInOutCubic(prog(t, 0.4, 2.2))
         let leftBracketFrac = lerp(0.10, 0.22, trimAnim)
         let rightBracketFrac = lerp(0.90, 0.78, trimAnim)
 
@@ -1178,26 +1131,28 @@ struct LaunchFilmDirector {
             let bh = (waveBox.height - 44) * (hPct / 100.0)
             let bx = waveBox.minX + 28 + CGFloat(i) * barStep
             let by = waveBox.midY - bh / 2
-            c.drawBox(
-                CGRect(x: bx, y: by, width: max(6, barStep - 7), height: bh),
-                radius: 3,
-                fill: inside ? Palette.purple : Palette.white(0.16)
-            )
+            c.drawBox(CGRect(x: bx, y: by, width: max(6, barStep - 7), height: bh), radius: 3, fill: inside ? Palette.purple : Palette.white(0.16))
         }
-        let trimRect = CGRect(
-            x: waveBox.minX + 28 + barAreaW * leftBracketFrac,
-            y: waveBox.minY + 12,
-            width: barAreaW * (rightBracketFrac - leftBracketFrac),
-            height: waveBox.height - 24
-        )
+        let trimRect = CGRect(x: waveBox.minX + 28 + barAreaW * leftBracketFrac, y: waveBox.minY + 12, width: barAreaW * (rightBracketFrac - leftBracketFrac), height: waveBox.height - 24)
         c.drawBox(trimRect, radius: 8, fill: Palette.purple(0.12), stroke: Palette.purpleSoft, lineWidth: 2.5)
+
+        // Animated moving playback scrubber line
+        let scrubFrac = leftBracketFrac + (rightBracketFrac - leftBracketFrac) * (0.5 + 0.5 * sin(Double(t) * 3.5))
+        let scrubX = waveBox.minX + 28 + barAreaW * scrubFrac
+        c.ctx.saveGState()
+        c.ctx.setStrokeColor(Palette.pureWhite.cgColor)
+        c.ctx.setLineWidth(2.0)
+        c.ctx.move(to: CGPoint(x: scrubX, y: waveBox.minY + 10))
+        c.ctx.addLine(to: CGPoint(x: scrubX, y: waveBox.maxY - 10))
+        c.ctx.strokePath()
+        c.ctx.restoreGState()
+
         c.drawText("clip.mov  ·  00:04.12 — 00:14.00  ·  Lossless stream cut", at: CGPoint(x: card1.minX + 36, y: card1.maxY - 46), font: fonts.mono(13.5), color: Palette.white(0.60))
 
-        // Bottom Right Card: PDF & Photo Privacy Toolkit
-        let card2 = CGRect(x: rightX, y: 616, width: 840, height: 354)
+        let card2 = CGRect(x: rightX, y: 602, width: 840, height: 364)
         c.drawBox(card2, radius: 24, fill: Palette.surface1, stroke: Palette.white(0.10), lineWidth: 1.5)
-        c.drawText("DOCUMENT & IMAGE TOOLKIT", at: CGPoint(x: card2.minX + 36, y: card2.minY + 34), font: fonts.mono(13, semibold: true), color: Palette.purpleSoft, tracking: 1.5)
-        c.drawText("Merge, split, OCR, redact & strip EXIF", at: CGPoint(x: card2.minX + 36, y: card2.minY + 66), font: fonts.display(30), color: Palette.pureWhite, tracking: -0.8)
+        c.drawText("DOCUMENT & IMAGE TOOLKIT", at: CGPoint(x: card2.minX + 36, y: card2.minY + 32), font: fonts.mono(13, semibold: true), color: Palette.purpleSoft, tracking: 1.5)
+        c.drawText("Merge, split, OCR, redact & strip EXIF", at: CGPoint(x: card2.minX + 36, y: card2.minY + 64), font: fonts.display(30), color: Palette.pureWhite, tracking: -0.8)
 
         let toolChips = [
             "Merge PDF", "Split PDF", "Organize Pages", "PDF → DOCX",
@@ -1207,60 +1162,45 @@ struct LaunchFilmDirector {
         for (i, chip) in toolChips.enumerated() {
             let col = i % 4
             let row = i / 4
-            let chipP = easeOutQuint(prog(t, 0.35 + CGFloat(i) * 0.06, 0.45))
+            let chipP = springPop(prog(t, 0.25 + CGFloat(i) * 0.06, 0.45))
             let cx = card2.minX + 36 + CGFloat(col) * 194
-            let cy = card2.minY + 134 + CGFloat(row) * 62 + (1 - chipP) * 12
+            let cy = card2.minY + 134 + CGFloat(row) * 64 + (1 - chipP) * 12
             let highlight = (i == 0 || i == 4 || i == 5 || i == 6)
-            c.drawBox(
-                CGRect(x: cx, y: cy, width: 180, height: 48),
-                radius: 11,
-                fill: highlight ? Palette.purple(0.16 * chipP) : Palette.bgObsidian.withAlphaComponent(chipP),
-                stroke: highlight ? Palette.purple(0.55 * chipP) : Palette.white(0.09 * chipP),
-                lineWidth: 1.3
-            )
-            c.drawText(
-                chip,
-                at: CGPoint(x: cx + 90, y: cy + 14),
-                font: fonts.mono(13.5, semibold: highlight),
-                color: (highlight ? Palette.pureWhite : Palette.white(0.75)).withAlphaComponent(chipP),
-                align: .center
-            )
+            c.drawBox(CGRect(x: cx, y: cy, width: 180, height: 48), radius: 11, fill: highlight ? Palette.purple(0.18 * chipP) : Palette.bgObsidian.withAlphaComponent(chipP), stroke: highlight ? Palette.purple(0.60 * chipP) : Palette.white(0.09 * chipP), lineWidth: 1.3)
+            c.drawText(chip, at: CGPoint(x: cx + 90, y: cy + 14), font: fonts.mono(13.5, semibold: highlight), color: (highlight ? Palette.pureWhite : Palette.white(0.75)).withAlphaComponent(chipP), align: .center)
         }
     }
 
-    // MARK: Act 4 (16.6s - 21.4s, dur 4.8s): 176 Local Conversion Routes Explorer
+    // MARK: Act 4 (17.5s - 22.8s, dur 5.3s): 176 Local Conversion Routes & Streaming Data Pulses
     private func renderAct4FormatMatrix176(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.bgObsidian)
-        c.drawGrid(lineAlpha: 0.03)
-        c.drawRadialSpotlight(cx: 1380, cy: 300, radius: 680, alpha: 0.20)
+        let drift = t * 14.0
+        c.drawGrid(lineAlpha: 0.03, driftX: drift, driftY: drift * 0.4)
+        c.drawRadialSpotlight(cx: 1380, cy: 290, radius: 700, alpha: 0.24)
 
-        // Giant Animated Counter "176"
         let countP = easeOutQuint(prog(t, 0.0, 0.85))
         let countVal = Int(round(176.0 * countP))
 
-        c.drawText("02 / DIRECT CODEC MATRIX", at: CGPoint(x: 110, y: 88), font: fonts.mono(14, semibold: true), color: Palette.purpleSoft, tracking: 2.2)
-        c.drawText("\(countVal)", at: CGPoint(x: 110, y: 122), font: fonts.display(146, bold: true), color: Palette.pureWhite, tracking: -6.0)
-        c.drawText("local conversion routes.\nEvery codec runs on your machine.", at: CGPoint(x: 410, y: 154), font: fonts.display(46, bold: false), color: Palette.white(0.88), tracking: -1.4)
+        c.drawText("02 / DIRECT CODEC MATRIX", at: CGPoint(x: 110, y: 74), font: fonts.mono(14, semibold: true), color: Palette.purpleSoft, tracking: 2.2)
+        c.drawText("\(countVal)", at: CGPoint(x: 110, y: 108), font: fonts.display(142, bold: true), color: Palette.pureWhite, tracking: -6.0)
+        c.drawText("local conversion routes.\nEvery codec runs on your machine.", at: CGPoint(x: 410, y: 138), font: fonts.display(46, bold: false), color: Palette.white(0.88), tracking: -1.4)
 
-        // 4 Horizontal Routing Lanes
         let lanes: [(String, String, [String], [String], String)] = [
-            ("IMAGES", "56 routes", [".HEIC", ".AVIF", ".WEBP", ".TIFF", ".BMP"], [".PNG", ".JPEG", ".WEBP", ".AVIF", ".PDF"], "ImageIO + Lossless WebP"),
-            ("DOCUMENTS", "12 routes", [".PDF", ".SCAN", ".IMAGES"], [".DOCX", ".OCR TXT", ".MERGED PDF", ".PNG"], "PDFKit + Vision OCR + DOCX"),
-            ("VIDEO & AUDIO", "106 routes", [".MOV", ".MKV", ".WAV", ".FLAC", ".M4A"], [".MP4", ".WEBM", ".MP3", ".AAC", ".OGG"], "AVFoundation + Local FFmpeg"),
-            ("SUBTITLES", "2 routes", [".SRT"], [".VTT", "TIMECODE SYNC"], "Native Parser")
+            ("IMAGES", "65 routes", [".HEIC", ".AVIF", ".WEBP", ".TIFF", ".SVG"], [".PNG", ".JPEG", ".WEBP", ".AVIF", ".PDF"], "ImageIO + Lossless WebP"),
+            ("DOCUMENTS", "14 routes", [".PDF", ".TXT", ".PNG", ".JPEG"], [".DOCX", ".PDF", ".TXT", ".PNG"], "PDFKit + Native OCR + DOCX"),
+            ("VIDEO & AUDIO", "93 routes", [".MOV", ".MKV", ".WAV", ".FLAC", ".M4A"], [".MP4", ".WEBM", ".MP3", ".OPUS", ".OGG"], "AVFoundation + Local FFmpeg"),
+            ("SUBTITLES", "4 routes", [".SRT", ".VTT"], [".VTT", ".SRT", ".TXT"], "Deterministic Cue Parser")
         ]
 
         for (idx, lane) in lanes.enumerated() {
-            let p = easeOutQuint(prog(t, 0.25 + CGFloat(idx) * 0.14, 0.55))
-            let y = 336 + CGFloat(idx) * 164 + (1 - p) * 24
+            let p = easeOutQuint(prog(t, 0.20 + CGFloat(idx) * 0.12, 0.50))
+            let y = 316 + CGFloat(idx) * 164 + (1 - p) * 24
             let rowRect = CGRect(x: 110, y: y, width: 1700, height: 142)
             c.drawBox(rowRect, radius: 20, fill: Palette.surface1.withAlphaComponent(p), stroke: Palette.white(0.10 * p), lineWidth: 1.4)
 
-            // Category title & route count
             c.drawText(lane.0, at: CGPoint(x: rowRect.minX + 34, y: rowRect.minY + 34), font: fonts.display(26, bold: true), color: Palette.white(p), tracking: -0.6)
             c.drawText("\(lane.1)  ·  \(lane.4)", at: CGPoint(x: rowRect.minX + 34, y: rowRect.minY + 76), font: fonts.mono(13), color: Palette.white(0.48 * p))
 
-            // Source Chips
             var sx: CGFloat = rowRect.minX + 430
             for src in lane.2 {
                 let cw = c.measureText(src, font: fonts.mono(15, semibold: true)).width + 32
@@ -1270,13 +1210,19 @@ struct LaunchFilmDirector {
                 sx += cw + 10
             }
 
-            // Animated purple arrow conduit
             let arrowX: CGFloat = rowRect.minX + 985
-            let pulse = 0.5 + 0.5 * sin((t * 4.5) - CGFloat(idx) * 0.8)
-            c.drawBox(CGRect(x: arrowX, y: rowRect.midY - 19, width: 78, height: 38), radius: 19, fill: Palette.purple((0.18 + 0.14 * pulse) * p), stroke: Palette.purple(0.65 * p))
+            let pulse = 0.5 + 0.5 * sin((Double(t) * 5.0) - Double(idx) * 0.8)
+            c.drawBox(CGRect(x: arrowX, y: rowRect.midY - 19, width: 78, height: 38), radius: 19, fill: Palette.purple((0.18 + 0.14 * CGFloat(pulse)) * p), stroke: Palette.purple(0.65 * p))
             c.drawText("→", at: CGPoint(x: arrowX + 39, y: rowRect.midY - 13), font: fonts.mono(20, semibold: true), color: Palette.purpleSoft(p), align: .center)
 
-            // Output Chips
+            // Streaming glowing data beam pulse traveling through the arrow
+            let beamFrac = CGFloat((t * 2.5 + CGFloat(idx) * 0.35).truncatingRemainder(dividingBy: 1.0))
+            let beamX = arrowX - 40 + beamFrac * 158
+            c.ctx.saveGState()
+            c.ctx.setFillColor(Palette.purpleSoft(0.7 * p).cgColor)
+            c.ctx.fillEllipse(in: CGRect(x: beamX - 4, y: rowRect.midY - 4, width: 8, height: 8))
+            c.ctx.restoreGState()
+
             var ox: CGFloat = rowRect.minX + 1095
             for dst in lane.3 {
                 let cw = c.measureText(dst, font: fonts.mono(15, semibold: true)).width + 32
@@ -1289,24 +1235,23 @@ struct LaunchFilmDirector {
         }
     }
 
-    // MARK: Act 5 (21.4s - 26.2s, dur 4.8s): Pure White Contrast Section — Data Sovereignty ("0.0 KB")
+    // MARK: Act 5 (22.8s - 26.2s, dur 3.4s): Pure White Contrast Section — Data Sovereignty ("0.0 KB")
     private func renderAct5WhitePrivacyContrast(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.pureWhite)
         c.drawGrid(lineAlpha: 0.045, darkInk: true)
 
-        let headP = easeOutQuint(prog(t, 0.0, 0.45))
-        c.drawText("03 / DATA SOVEREIGNTY", at: CGPoint(x: 110, y: 86 + (1 - headP) * 16), font: fonts.mono(14, semibold: true), color: Palette.purple.withAlphaComponent(headP), tracking: 2.2)
-        c.drawText("Your files never take a round-trip.", at: CGPoint(x: 110, y: 122 + (1 - headP) * 16), font: fonts.display(66, bold: true), color: Palette.black(headP), tracking: -2.4)
+        let headP = easeOutQuint(prog(t, 0.0, 0.40))
+        c.drawText("03 / DATA SOVEREIGNTY", at: CGPoint(x: 110, y: 74 + (1 - headP) * 16), font: fonts.mono(14, semibold: true), color: Palette.purple.withAlphaComponent(headP), tracking: 2.2)
+        c.drawText("Your files never take a round-trip.", at: CGPoint(x: 110, y: 108 + (1 - headP) * 16), font: fonts.display(64, bold: true), color: Palette.black(headP), tracking: -2.4)
 
-        // Lane 1: Other converters (faded, dashed remote server)
-        let l1P = easeOutQuint(prog(t, 0.20, 0.50))
-        let lane1 = CGRect(x: 110, y: 248 + (1 - l1P) * 18, width: 1700, height: 260)
+        let l1P = easeOutQuint(prog(t, 0.15, 0.45))
+        let lane1 = CGRect(x: 110, y: 228 + (1 - l1P) * 18, width: 1700, height: 256)
         c.drawBox(lane1, radius: 24, fill: Palette.black(0.025 * l1P), stroke: Palette.black(0.12 * l1P), lineWidth: 1.5)
-        c.drawText("OTHER CONVERTERS  —  YOUR FILE → THEIR CLOUD SERVER", at: CGPoint(x: lane1.minX + 38, y: lane1.minY + 28), font: fonts.mono(13.5, semibold: true), color: Palette.black(0.50 * l1P), tracking: 1.2)
+        c.drawText("OTHER CONVERTERS  —  YOUR FILE → THEIR CLOUD SERVER", at: CGPoint(x: lane1.minX + 38, y: lane1.minY + 26), font: fonts.mono(13.5, semibold: true), color: Palette.black(0.50 * l1P), tracking: 1.2)
 
-        let n1 = CGRect(x: lane1.minX + 38, y: lane1.minY + 82, width: 410, height: 132)
-        let n2 = CGRect(x: lane1.minX + 610, y: lane1.minY + 82, width: 480, height: 132)
-        let n3 = CGRect(x: lane1.minX + 1252, y: lane1.minY + 82, width: 410, height: 132)
+        let n1 = CGRect(x: lane1.minX + 38, y: lane1.minY + 78, width: 410, height: 132)
+        let n2 = CGRect(x: lane1.minX + 610, y: lane1.minY + 78, width: 480, height: 132)
+        let n3 = CGRect(x: lane1.minX + 1252, y: lane1.minY + 78, width: 410, height: 132)
 
         c.drawBox(n1, radius: 16, fill: Palette.pureWhite, stroke: Palette.black(0.14 * l1P))
         c.drawText("YOUR MAC", at: CGPoint(x: n1.minX + 24, y: n1.minY + 24), font: fonts.mono(12, semibold: true), color: Palette.black(0.45 * l1P))
@@ -1327,9 +1272,9 @@ struct LaunchFilmDirector {
         c.drawText("tax-return (1).docx", at: CGPoint(x: n3.minX + 24, y: n3.minY + 54), font: fonts.mono(20, semibold: true), color: Palette.black(0.75 * l1P))
         c.drawText("Manual re-download", at: CGPoint(x: n3.minX + 24, y: n3.minY + 88), font: fonts.sans(15), color: Palette.black(0.48 * l1P))
 
-        // Lane 2: DOCYO — Closed Local Enclosure + Bold "0.0 KB" Air-Gap Card
-        let l2P = easeOutQuint(prog(t, 0.55, 0.55))
-        let vault = CGRect(x: 110, y: 544 + (1 - l2P) * 22, width: 1230, height: 420)
+        // Docyo Local Vault
+        let l2P = easeOutQuint(prog(t, 0.45, 0.50))
+        let vault = CGRect(x: 110, y: 518 + (1 - l2P) * 22, width: 1230, height: 446)
         c.drawBox(vault, radius: 26, fill: Palette.pureWhite, stroke: Palette.bgObsidian.withAlphaComponent(l2P), lineWidth: 3.0)
 
         c.drawPill(
@@ -1344,74 +1289,69 @@ struct LaunchFilmDirector {
             alpha: l2P
         )
 
-        let d1 = CGRect(x: vault.minX + 36, y: vault.minY + 114, width: 340, height: 176)
-        let d2 = CGRect(x: vault.minX + 436, y: vault.minY + 114, width: 358, height: 176)
-        let d3 = CGRect(x: vault.minX + 854, y: vault.minY + 114, width: 340, height: 176)
+        let d1 = CGRect(x: vault.minX + 36, y: vault.minY + 118, width: 340, height: 184)
+        let d2 = CGRect(x: vault.minX + 436, y: vault.minY + 118, width: 358, height: 184)
+        let d3 = CGRect(x: vault.minX + 854, y: vault.minY + 118, width: 340, height: 184)
 
         c.drawBox(d1, radius: 18, fill: Palette.black(0.03 * l2P), stroke: Palette.black(0.14 * l2P))
         c.drawText("READ-ONLY FD", at: CGPoint(x: d1.minX + 24, y: d1.minY + 26), font: fonts.mono(12, semibold: true), color: Palette.black(0.50 * l2P))
-        c.drawText("tax-return.pdf", at: CGPoint(x: d1.minX + 24, y: d1.minY + 64), font: fonts.mono(21, semibold: true), color: Palette.black(l2P))
-        c.drawText("Original untouched", at: CGPoint(x: d1.minX + 24, y: d1.minY + 112), font: fonts.sans(16, medium: true), color: Palette.black(0.62 * l2P))
+        c.drawText("tax-return.pdf", at: CGPoint(x: d1.minX + 24, y: d1.minY + 66), font: fonts.mono(21, semibold: true), color: Palette.black(l2P))
+        c.drawText("Original untouched", at: CGPoint(x: d1.minX + 24, y: d1.minY + 116), font: fonts.sans(16, medium: true), color: Palette.black(0.62 * l2P))
 
         c.drawText("→", at: CGPoint(x: d1.maxX + 30, y: d1.midY - 18), font: fonts.mono(28, semibold: true), color: Palette.purple.withAlphaComponent(l2P), align: .center)
 
         c.drawBox(d2, radius: 18, fill: Palette.purple(0.09 * l2P), stroke: Palette.purple(0.55 * l2P), lineWidth: 2.0)
         c.drawImage(avatar, in: CGRect(x: d2.maxX - 58, y: d2.minY + 20, width: 38, height: 38), alpha: l2P)
         c.drawText("APPLE SILICON / x64", at: CGPoint(x: d2.minX + 24, y: d2.minY + 26), font: fonts.mono(12, semibold: true), color: Palette.purpleDeep.withAlphaComponent(l2P))
-        c.drawText("Docyo Native Engine", at: CGPoint(x: d2.minX + 24, y: d2.minY + 64), font: fonts.display(24, bold: true), color: Palette.black(l2P))
-        c.drawText(".docyo-stage → atomic commit", at: CGPoint(x: d2.minX + 24, y: d2.minY + 112), font: fonts.mono(13.5, semibold: true), color: Palette.purpleDeep.withAlphaComponent(l2P))
+        c.drawText("Docyo Native Engine", at: CGPoint(x: d2.minX + 24, y: d2.minY + 66), font: fonts.display(24, bold: true), color: Palette.black(l2P))
+        c.drawText(".docyo-stage → atomic commit", at: CGPoint(x: d2.minX + 24, y: d2.minY + 116), font: fonts.mono(13.5, semibold: true), color: Palette.purpleDeep.withAlphaComponent(l2P))
 
         c.drawText("→", at: CGPoint(x: d2.maxX + 30, y: d2.midY - 18), font: fonts.mono(28, semibold: true), color: Palette.purple.withAlphaComponent(l2P), align: .center)
 
         c.drawBox(d3, radius: 18, fill: Palette.bgObsidian.withAlphaComponent(l2P), stroke: Palette.bgObsidian.withAlphaComponent(l2P))
         c.drawText("SIBLING OUTPUT", at: CGPoint(x: d3.minX + 24, y: d3.minY + 26), font: fonts.mono(12, semibold: true), color: Palette.purpleSoft(l2P))
-        c.drawText("tax-return.docx", at: CGPoint(x: d3.minX + 24, y: d3.minY + 64), font: fonts.mono(21, semibold: true), color: Palette.white(l2P))
-        c.drawText("Ready in same folder ✓", at: CGPoint(x: d3.minX + 24, y: d3.minY + 112), font: fonts.sans(16, medium: true), color: Palette.white(0.75 * l2P))
+        c.drawText("tax-return.docx", at: CGPoint(x: d3.minX + 24, y: d3.minY + 66), font: fonts.mono(21, semibold: true), color: Palette.white(l2P))
+        c.drawText("Ready in same folder ✓", at: CGPoint(x: d3.minX + 24, y: d3.minY + 116), font: fonts.sans(16, medium: true), color: Palette.white(0.75 * l2P))
 
         c.drawText(
             "READ_ONLY_FD   ·   ATOMIC_COMMIT   ·   COLLISION_SAFE   ·   SHELL_SAFE_ARGV",
-            at: CGPoint(x: vault.minX + 36, y: vault.maxY - 62),
+            at: CGPoint(x: vault.minX + 36, y: vault.maxY - 58),
             font: fonts.mono(13.5, semibold: true),
             color: Palette.black(0.55 * l2P),
             tracking: 1.0
         )
 
-        // Right Callout Card: "0.0 KB"
-        let zeroP = springPop(prog(t, 0.85, 0.60))
-        let zeroCard = CGRect(x: 1372, y: 544, width: 438, height: 420)
-        c.drawBox(
-            zeroCard,
-            radius: 26,
-            fill: Palette.bgObsidian.withAlphaComponent(clamp(zeroP)),
-            stroke: Palette.purple.withAlphaComponent(clamp(zeroP)),
-            lineWidth: 2.5
-        )
+        // 0.0 KB Card
+        let zeroP = springPop(prog(t, 0.70, 0.55))
+        let zeroCard = CGRect(x: 1372, y: 518, width: 438, height: 446)
+        c.drawBox(zeroCard, radius: 26, fill: Palette.bgObsidian.withAlphaComponent(clamp(zeroP)), stroke: Palette.purple.withAlphaComponent(clamp(zeroP)), lineWidth: 2.5)
         c.drawText("EXTERNAL NETWORK", at: CGPoint(x: zeroCard.minX + 36, y: zeroCard.minY + 38), font: fonts.mono(13, semibold: true), color: Palette.purpleSoft(clamp(zeroP)), tracking: 1.6)
-        c.drawText("0.0 KB", at: CGPoint(x: zeroCard.minX + 36, y: zeroCard.minY + 112), font: fonts.display(100, bold: true), color: Palette.white(clamp(zeroP)), tracking: -4.0)
-        c.drawText("Crosses the network.\nWorks on an airplane\nwith Wi-Fi turned off.", at: CGPoint(x: zeroCard.minX + 36, y: zeroCard.minY + 246), font: fonts.sans(22, medium: true), color: Palette.white(0.75 * clamp(zeroP)))
+        c.drawText("0.0 KB", at: CGPoint(x: zeroCard.minX + 36, y: zeroCard.minY + 114), font: fonts.display(100, bold: true), color: Palette.white(clamp(zeroP)), tracking: -4.0)
+        c.drawText("Crosses the network.\nWorks on an airplane\nwith Wi-Fi turned off.", at: CGPoint(x: zeroCard.minX + 36, y: zeroCard.minY + 252), font: fonts.sans(22, medium: true), color: Palette.white(0.75 * clamp(zeroP)))
     }
 
-    // MARK: Act 6 (26.2s - 32.0s, dur 5.8s): Hero Finale & Direct Download CTA
+    // MARK: Act 6 (26.2s - 30.0s, dur 3.8s): Finale & Direct Download CTA
     private func renderAct6FinaleCTA(_ c: Canvas, t: CGFloat) {
         c.fillScreen(Palette.bgObsidian)
-        c.drawGrid(lineAlpha: 0.032)
+        let drift = t * 10.0
+        c.drawGrid(lineAlpha: 0.032, driftX: drift, driftY: drift * 0.4)
 
-        let enter = easeOutQuint(prog(t, 0.0, 0.70))
-        let pop = springPop(prog(t, 0.05, 0.72))
+        let enter = easeOutQuint(prog(t, 0.0, 0.60))
+        let pop = springPop(prog(t, 0.05, 0.65))
 
-        c.drawRadialSpotlight(cx: 960, cy: 430, radius: 780, alpha: 0.28 * enter)
+        // Gentle floating mascot hover physics
+        let mascotHoverY = sin(Double(t) * 2.2) * 5.0
+        c.drawRadialSpotlight(cx: 960, cy: 400, radius: 780, alpha: 0.30 * enter)
 
-        // Center Hero Penguin Squircle
         c.drawLogoSquircle(
-            center: CGPoint(x: 960, y: 256),
+            center: CGPoint(x: 960, y: 242 + CGFloat(mascotHoverY)),
             size: 168,
             scale: 0.76 + 0.24 * pop,
             alpha: enter,
-            glowAlpha: 0.34
+            glowAlpha: 0.36
         )
 
-        // Headline
-        let hP = easeOutQuint(prog(t, 0.25, 0.65))
+        let hP = easeOutQuint(prog(t, 0.20, 0.55))
         let fHero = fonts.display(102, bold: true)
         let p1 = "Drag. "
         let p2 = "Hold Shift. "
@@ -1421,55 +1361,47 @@ struct LaunchFilmDirector {
         let s3 = c.measureText(p3, font: fHero, tracking: -3.5)
         let tot = s1.width + s2.width + s3.width
         let hx = 960 - tot / 2
-        let hy = 382 + (1 - hP) * 26
+        let hy = 368 + (1 - hP) * 24
 
         c.drawText(p1, at: CGPoint(x: hx, y: hy), font: fHero, color: Palette.white(hP), tracking: -3.5)
         c.drawText(p2, at: CGPoint(x: hx + s1.width, y: hy), font: fHero, color: Palette.purpleSoft(hP), tracking: -3.5)
         c.drawText(p3, at: CGPoint(x: hx + s1.width + s2.width, y: hy), font: fHero, color: Palette.white(hP), tracking: -3.5)
 
-        // Platform & License strip
-        let subP = easeOutQuint(prog(t, 0.50, 0.55))
+        let subP = easeOutQuint(prog(t, 0.45, 0.50))
         c.drawText(
             "macOS Native (.dmg)   ·   Windows 10/11   ·   Linux x64   ·   100% Open Source (GPL-3.0)",
-            at: CGPoint(x: 960, y: 526 + (1 - subP) * 16),
+            at: CGPoint(x: 960, y: 510 + (1 - subP) * 16),
             font: fonts.mono(18, semibold: false),
             color: Palette.white(0.66 * subP),
             tracking: 0.4,
             align: .center
         )
 
-        // Glowing Purple CTA Pill Button
-        let ctaP = springPop(prog(t, 0.72, 0.65))
-        let ctaA = easeOutQuint(prog(t, 0.72, 0.45))
+        let ctaP = springPop(prog(t, 0.95, 0.60))
+        let ctaA = easeOutQuint(prog(t, 0.95, 0.40))
         if ctaA > 0.01 {
-            let bw: CGFloat = 650 * (0.9 + 0.1 * ctaP)
+            let bw: CGFloat = 660 * (0.9 + 0.1 * ctaP)
             let bh: CGFloat = 78
-            let btnRect = CGRect(x: 960 - bw / 2, y: 610, width: bw, height: bh)
-            c.drawBox(
-                btnRect,
-                radius: 20,
-                fill: Palette.purple.withAlphaComponent(ctaA),
-                stroke: Palette.purpleSoft.withAlphaComponent(ctaA),
-                lineWidth: 2.0,
-                shadowAlpha: 0.65 * ctaA,
-                shadowBlur: 40,
-                shadowY: 14
-            )
-            c.drawText(
-                "Download Docyo Free  ·  github.com/subhashmalik0001/Docyo",
-                at: CGPoint(x: 960, y: btnRect.minY + 25),
-                font: fonts.mono(17, semibold: true),
-                color: Palette.white(ctaA),
-                tracking: 0.2,
-                align: .center
-            )
+            let btnRect = CGRect(x: 960 - bw / 2, y: 594, width: bw, height: bh)
+            c.drawBox(btnRect, radius: 20, fill: Palette.purple.withAlphaComponent(ctaA), stroke: Palette.purpleSoft.withAlphaComponent(ctaA), lineWidth: 2.0, shadowAlpha: 0.65 * ctaA, shadowBlur: 40, shadowY: 14)
+
+            // Animated light sheen shimmer gliding across button
+            let shimmerFrac = CGFloat((t * 0.9).truncatingRemainder(dividingBy: 1.0))
+            let shimmerX = btnRect.minX - 100 + shimmerFrac * (btnRect.width + 200)
+            c.ctx.saveGState()
+            c.ctx.addPath(c.roundedRectPath(btnRect, radius: 20))
+            c.ctx.clip()
+            let sheenGrad = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!, colors: [Palette.white(0).cgColor, Palette.white(0.28 * ctaA).cgColor, Palette.white(0).cgColor] as CFArray, locations: [0.0, 0.5, 1.0])!
+            c.ctx.drawLinearGradient(sheenGrad, start: CGPoint(x: shimmerX - 60, y: btnRect.minY), end: CGPoint(x: shimmerX + 60, y: btnRect.maxY), options: [])
+            c.ctx.restoreGState()
+
+            c.drawText("Download Docyo Free  ·  github.com/subhashmalik0001/Docyo", at: CGPoint(x: 960, y: btnRect.minY + 25), font: fonts.mono(17, semibold: true), color: Palette.white(ctaA), tracking: 0.2, align: .center)
         }
 
-        // Four trust badges at bottom
-        let trP = easeOutQuint(prog(t, 1.0, 0.55))
+        let trP = easeOutQuint(prog(t, 1.25, 0.50))
         c.drawText(
-            "NO ACCOUNTS     ·     NO UPLOADS     ·     NO TELEMETRY     ·     ORIGINALS NEVER TOUCHED",
-            at: CGPoint(x: 960, y: 760 + (1 - trP) * 12),
+            "NO ACCOUNTS     ·     NO UPLOADS     ·     NO TELEMETRY     ·     MADE BY SUBHASH MALIK",
+            at: CGPoint(x: 960, y: 734 + (1 - trP) * 12),
             font: fonts.mono(13.5, semibold: true),
             color: Palette.white(0.42 * trP),
             tracking: 2.2,
@@ -1478,8 +1410,7 @@ struct LaunchFilmDirector {
     }
 
     private func drawSceneTransitionOverlay(_ c: Canvas, globalT t: CGFloat) {
-        // Crisp 0.18s micro-fade around hard cuts + 0.45s fade-in at 0s and fade-out at 32s
-        let cutPoints: [CGFloat] = [4.2, 11.8, 16.6, 21.4, 26.2]
+        let cutPoints: [CGFloat] = [3.80, 12.00, 17.50, 22.80, 26.20]
         var flashAlpha: CGFloat = 0
         for cp in cutPoints {
             let dist = abs(t - cp)
@@ -1487,11 +1418,11 @@ struct LaunchFilmDirector {
                 flashAlpha = max(flashAlpha, (1.0 - dist / 0.12) * 0.65)
             }
         }
-        if t < 0.30 {
-            flashAlpha = max(flashAlpha, 1.0 - t / 0.30)
+        if t < 0.22 {
+            flashAlpha = max(flashAlpha, 1.0 - t / 0.22)
         }
-        if t > 31.45 {
-            flashAlpha = max(flashAlpha, (t - 31.45) / 0.55)
+        if t > 29.50 {
+            flashAlpha = max(flashAlpha, (t - 29.50) / 0.50)
         }
         if flashAlpha > 0.005 {
             c.fillScreen(Palette.bgObsidian.withAlphaComponent(clamp(flashAlpha)))
@@ -1499,157 +1430,7 @@ struct LaunchFilmDirector {
     }
 }
 
-// MARK: - Studio Procedural Audio Synthesizer (48 kHz Stereo PCM -> AAC)
-
-struct StudioSoundDesigner {
-    let sampleRate: Double = 48_000
-    let duration: Double = 32.0
-
-    func renderStereoPCM() -> [Int16] {
-        let totalFrames = Int(sampleRate * duration)
-        var left = [Double](repeating: 0, count: totalFrames)
-        var right = [Double](repeating: 0, count: totalFrames)
-
-        // 1. Warm Minimal Ambient Pad Progression (Raycast / Linear style soft filtered sine+fifth+ninth)
-        let chords: [(Double, Double, [Double])] = [
-            (0.0,  8.0,  [146.83, 220.00, 261.63, 329.63]), // Dm9 (D3, A3, C4, E4)
-            (8.0,  16.6, [116.54, 174.61, 220.00, 293.66]), // Bbmaj7 (Bb2, F3, A3, D4)
-            (16.6, 21.4, [130.81, 196.00, 246.94, 293.66]), // Cmaj9 / G
-            (21.4, 26.2, [110.00, 220.00, 277.18, 329.63]), // Bright A major lift on White Privacy Cut
-            (26.2, 31.8, [146.83, 220.00, 293.66, 369.99, 440.00]) // Warm resolving Dmaj add9 Finale
-        ]
-
-        for (start, end, freqs) in chords {
-            let i0 = max(0, Int(start * sampleRate))
-            let i1 = min(totalFrames, Int(end * sampleRate))
-            let dur = end - start
-            for i in i0..<i1 {
-                let localT = Double(i - i0) / sampleRate
-                let fadeIn = min(1.0, localT / 0.85)
-                let fadeOut = min(1.0, (dur - localT) / 0.95)
-                let env = fadeIn * fadeOut * 0.055
-                let globalT = Double(i) / sampleRate
-                var sL = 0.0
-                var sR = 0.0
-                for (k, f) in freqs.enumerated() {
-                    let detune = (k % 2 == 0) ? 1.0012 : 0.9988
-                    let lfo = 0.85 + 0.15 * sin(2 * .pi * (0.22 + Double(k) * 0.05) * globalT)
-                    sL += sin(2 * .pi * f * globalT) * lfo
-                    sR += sin(2 * .pi * (f * detune) * globalT + 0.35) * lfo
-                }
-                let norm = 1.0 / Double(freqs.count)
-                left[i] += sL * norm * env
-                right[i] += sR * norm * env
-            }
-        }
-
-        // Helper: Soft low-end beat thump
-        func addSubPulse(at t0: Double, freqStart: Double = 92, freqEnd: Double = 42, dur: Double = 0.24, amp: Double = 0.22) {
-            let startIdx = Int(t0 * sampleRate)
-            let count = Int(dur * sampleRate)
-            var phase = 0.0
-            for j in 0..<count where startIdx + j < totalFrames {
-                let p = Double(j) / Double(count)
-                let f = freqStart + (freqEnd - freqStart) * pow(p, 0.45)
-                phase += (2 * .pi * f) / sampleRate
-                let env = exp(-9.5 * p) * min(1.0, Double(j) / 64.0)
-                let v = sin(phase) * env * amp
-                left[startIdx + j] += v
-                right[startIdx + j] += v
-            }
-        }
-
-        // Helper: Tactile UI click / detent
-        func addTactileTick(at t0: Double, freq: Double = 1650, dur: Double = 0.018, amp: Double = 0.11, pan: Double = 0) {
-            let startIdx = Int(t0 * sampleRate)
-            let count = Int(dur * sampleRate)
-            for j in 0..<count where startIdx + j < totalFrames {
-                let p = Double(j) / Double(count)
-                let env = exp(-14.0 * p) * min(1.0, Double(j) / 24.0)
-                let v = (sin(2 * .pi * freq * (Double(j) / sampleRate)) + 0.35 * sin(2 * .pi * freq * 2.1 * (Double(j) / sampleRate))) * env * amp
-                left[startIdx + j] += v * (1.0 - max(0, pan) * 0.4)
-                right[startIdx + j] += v * (1.0 + min(0, pan) * 0.4)
-            }
-        }
-
-        // Helper: Crystalline harmonic bell chime
-        func addBellNote(at t0: Double, freq: Double, dur: Double = 0.85, amp: Double = 0.09, pan: Double = 0) {
-            let startIdx = Int(t0 * sampleRate)
-            let count = Int(dur * sampleRate)
-            for j in 0..<count where startIdx + j < totalFrames {
-                let dt = Double(j) / sampleRate
-                let env = exp(-4.8 * (dt / dur)) * min(1.0, Double(j) / 96.0)
-                let sig = (sin(2 * .pi * freq * dt) + 0.22 * sin(2 * .pi * freq * 2.0 * dt) + 0.08 * sin(2 * .pi * freq * 3.0 * dt)) * env * amp
-                left[startIdx + j] += sig * (1.0 - max(0, pan) * 0.35)
-                right[startIdx + j] += sig * (1.0 + min(0, pan) * 0.35)
-            }
-        }
-
-        // Synchronized Foley Timeline:
-        // Act 1: Cold open + Penguin reveal + 3 Tagline Beats ("Drag.", "Hold Shift.", "Convert.")
-        addSubPulse(at: 0.10, amp: 0.16)
-        addBellNote(at: 1.44, freq: 587.33, dur: 0.9, amp: 0.08, pan: -0.2) // D5
-        addBellNote(at: 1.50, freq: 880.00, dur: 1.0, amp: 0.07, pan: 0.2)  // A5
-
-        for bt in [1.42 + 0.42, 1.42 + 0.80, 1.42 + 1.18] {
-            addSubPulse(at: bt, freqStart: 105, freqEnd: 46, dur: 0.22, amp: 0.22)
-            addTactileTick(at: bt, freq: 1400, amp: 0.09)
-        }
-
-        // Act 2 (starts 4.2s): Drag pickup (5.35s), Shift held + Wheel bloom (5.58s), Wedge hover ticks, Drop (8.05s), Notch Success Chime (9.75s)
-        addTactileTick(at: 4.2 + 1.15, freq: 1100, amp: 0.10, pan: -0.3)
-        addTactileTick(at: 4.2 + 1.38, freq: 1850, amp: 0.13)
-        addSubPulse(at: 4.2 + 1.40, freqStart: 88, freqEnd: 45, dur: 0.20, amp: 0.17)
-        for (k, ht) in [4.2 + 1.50, 4.2 + 1.62, 4.2 + 2.45].enumerated() {
-            addTactileTick(at: ht, freq: 1550 + Double(k) * 260, amp: 0.09, pan: 0.15)
-        }
-        // Drop onto PNG wedge
-        addSubPulse(at: 4.2 + 3.85, freqStart: 110, freqEnd: 48, dur: 0.20, amp: 0.19)
-        addTactileTick(at: 4.2 + 3.85, freq: 2100, amp: 0.11)
-        // Notch Companion Success Arpeggio (t = 9.75s)
-        addBellNote(at: 4.2 + 5.55, freq: 587.33, dur: 0.75, amp: 0.085, pan: -0.25) // D5
-        addBellNote(at: 4.2 + 5.63, freq: 739.99, dur: 0.80, amp: 0.085, pan: 0.0)   // F#5
-        addBellNote(at: 4.2 + 5.72, freq: 880.00, dur: 0.95, amp: 0.095, pan: 0.25)  // A5
-        addBellNote(at: 4.2 + 5.82, freq: 1174.66, dur: 1.10, amp: 0.075, pan: 0.1)  // D6
-
-        // Act 3 (starts 11.8s): 3 Modifier Ring Switches
-        addSubPulse(at: 11.8, amp: 0.17)
-        for mt in [11.8 + 0.05, 11.8 + 1.45, 11.8 + 3.15] {
-            addTactileTick(at: mt, freq: 1750, amp: 0.11)
-        }
-
-        // Act 4 (starts 16.6s): 176 Routes Counter Cascade
-        addSubPulse(at: 16.6, amp: 0.18)
-        for step in 0..<8 {
-            addTactileTick(at: 16.68 + Double(step) * 0.085, freq: 1300 + Double(step) * 140, dur: 0.014, amp: 0.065)
-        }
-
-        // Act 5 (starts 21.4s): Pure White Contrast Cut + "0.0 KB" Slam (22.25s)
-        addSubPulse(at: 21.4, freqStart: 115, freqEnd: 40, dur: 0.28, amp: 0.24)
-        addSubPulse(at: 21.4 + 0.85, freqStart: 98, freqEnd: 44, dur: 0.24, amp: 0.20)
-        addBellNote(at: 21.4 + 0.86, freq: 880.0, dur: 0.8, amp: 0.075)
-
-        // Act 6 (starts 26.2s): Finale Reveal + CTA Pop
-        addSubPulse(at: 26.2, freqStart: 102, freqEnd: 42, dur: 0.32, amp: 0.22)
-        addBellNote(at: 26.28, freq: 587.33, dur: 1.3, amp: 0.08, pan: -0.2)
-        addBellNote(at: 26.38, freq: 880.00, dur: 1.5, amp: 0.08, pan: 0.2)
-        addTactileTick(at: 26.2 + 0.72, freq: 1920, amp: 0.09)
-
-        // Soft limiter + Master Fade-Out + Interleave Stereo Int16
-        var pcm = [Int16](repeating: 0, count: totalFrames * 2)
-        for i in 0..<totalFrames {
-            let t = Double(i) / sampleRate
-            let masterFade = t > 31.1 ? max(0.0, (31.95 - t) / 0.85) : min(1.0, t / 0.15)
-            let l = tanh(left[i] * masterFade * 1.15) * 0.88
-            let r = tanh(right[i] * masterFade * 1.15) * 0.88
-            pcm[i * 2]     = Int16(max(-32767, min(32767, l * 32767.0)))
-            pcm[i * 2 + 1] = Int16(max(-32767, min(32767, r * 32767.0)))
-        }
-        return pcm
-    }
-}
-
-// MARK: - Main CLI Entrypoint
+// MARK: - Concurrent Deadlock-Free AVAssetWriter MP4 Muxer (Video 1080p60 + Master Audio 48kHz Stereo)
 
 @main
 struct RenderDocyoLaunchFilm {
@@ -1674,9 +1455,19 @@ struct RenderDocyoLaunchFilm {
         }
     }
 
-    static func main() async throws {
+    static func extractWAVPCM(from wavURL: URL) throws -> Data {
+        let raw = try Data(contentsOf: wavURL)
+        let tag = Data("data".utf8)
+        if let range = raw.range(of: tag), range.upperBound + 4 <= raw.count {
+            return raw.subdata(in: (range.upperBound + 4)..<raw.count)
+        }
+        return raw.subdata(in: 44..<raw.count)
+    }
+
+    static func main() throws {
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        var outPath = cwd.appendingPathComponent("dist/Docyo-Launch-Video.mp4").path
+        var outPath = cwd.appendingPathComponent("website/public/docyo-launch.mp4").path
+        var audioWavPath = "/tmp/docyo-master-audio.wav"
         var previewDir: String? = nil
 
         var idx = 1
@@ -1684,6 +1475,9 @@ struct RenderDocyoLaunchFilm {
         while idx < args.count {
             if args[idx] == "--out", idx + 1 < args.count {
                 outPath = args[idx + 1]
+                idx += 2
+            } else if args[idx] == "--audio", idx + 1 < args.count {
+                audioWavPath = args[idx + 1]
                 idx += 2
             } else if args[idx] == "--preview-dir", idx + 1 < args.count {
                 previewDir = args[idx + 1]
@@ -1701,7 +1495,9 @@ struct RenderDocyoLaunchFilm {
             try FileManager.default.createDirectory(atPath: pDir, withIntermediateDirectories: true)
         }
 
-        // Load official 3D Purple Scholar Penguin brand logo
+        let pcmData = try extractWAVPCM(from: URL(fileURLWithPath: audioWavPath))
+        let totalAudioSamples = pcmData.count / 4 // 16-bit stereo = 4 bytes per frame
+
         let avatarCandidates = [
             cwd.appendingPathComponent("docs/assets/avatar.png"),
             cwd.appendingPathComponent("website/public/docyo-logo-512.png")
@@ -1729,7 +1525,7 @@ struct RenderDocyoLaunchFilm {
         let totalFrames = Int(director.duration * Double(fps))
 
         let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
-        writer.shouldOptimizeForNetworkUse = true // Fast-start moov atom for instant web playback!
+        writer.shouldOptimizeForNetworkUse = true
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -1767,68 +1563,6 @@ struct RenderDocyoLaunchFilm {
         aInput.expectsMediaDataInRealTime = false
         writer.add(aInput)
 
-        guard writer.startWriting() else {
-            fatalError("AVAssetWriter failed to start: \(String(describing: writer.error))")
-        }
-        writer.startSession(atSourceTime: .zero)
-
-        let previewKeyframes: [Int: String] = [
-            Int(0.75 * Double(fps)):  "01_cold_open.png",
-            Int(3.40 * Double(fps)):  "02_brand_reveal.png",
-            Int(7.20 * Double(fps)):  "03_radial_wheel_drag.png",
-            Int(10.60 * Double(fps)): "04_notch_success.png",
-            Int(14.20 * Double(fps)): "05_modifier_tools.png",
-            Int(19.20 * Double(fps)): "06_routes_176.png",
-            Int(24.20 * Double(fps)): "07_white_privacy.png",
-            Int(29.50 * Double(fps)): "08_finale_cta.png"
-        ]
-
-        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
-        print("Rendering \(totalFrames) frames (1920x1080 @ \(fps)fps)...")
-
-        for frame in 0..<totalFrames {
-            while !vInput.isReadyForMoreMediaData {
-                try await Task.sleep(nanoseconds: 1_000_000)
-            }
-            try autoreleasepool {
-                guard let pool = adaptor.pixelBufferPool else {
-                    fatalError("Missing pixelBufferPool")
-                }
-                var pbOut: CVPixelBuffer?
-                CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pbOut)
-                guard let pb = pbOut else { fatalError("PixelBuffer allocation failed") }
-
-                CVPixelBufferLockBaseAddress(pb, [])
-                if let ctx = CGContext(
-                    data: CVPixelBufferGetBaseAddress(pb),
-                    width: width,
-                    height: height,
-                    bitsPerComponent: 8,
-                    bytesPerRow: CVPixelBufferGetBytesPerRow(pb),
-                    space: colorSpace,
-                    bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
-                ) {
-                    let tSec = Double(frame) / Double(fps)
-                    director.renderFrame(time: tSec, into: ctx)
-                }
-                CVPixelBufferUnlockBaseAddress(pb, [])
-
-                let pts = CMTime(value: CMTimeValue(frame), timescale: CMTimeScale(fps))
-                adaptor.append(pb, withPresentationTime: pts)
-
-                if let pDir = previewDir, let name = previewKeyframes[frame] {
-                    try savePNG(from: pb, to: URL(fileURLWithPath: pDir).appendingPathComponent(name))
-                }
-            }
-        }
-        vInput.markAsFinished()
-
-        // Feed synthesized 48kHz stereo PCM audio track
-        print("Synthesizing & encoding 48kHz stereo soundscape...")
-        let soundDesigner = StudioSoundDesigner()
-        let pcm = soundDesigner.renderStereoPCM()
-        let totalSamples = pcm.count / 2
-
         var asbd = AudioStreamBasicDescription(
             mSampleRate: 48_000,
             mFormatID: kAudioFormatLinearPCM,
@@ -1852,68 +1586,149 @@ struct RenderDocyoLaunchFilm {
             formatDescriptionOut: &formatDesc
         )
 
-        let chunkFrames = 4096
-        var offsetFrames = 0
-        while offsetFrames < totalSamples {
-            while !aInput.isReadyForMoreMediaData {
-                try await Task.sleep(nanoseconds: 1_000_000)
-            }
-            let framesThisChunk = min(chunkFrames, totalSamples - offsetFrames)
-            let byteCount = framesThisChunk * 4
-
-            var blockBuf: CMBlockBuffer?
-            CMBlockBufferCreateWithMemoryBlock(
-                allocator: kCFAllocatorDefault,
-                memoryBlock: nil,
-                blockLength: byteCount,
-                blockAllocator: kCFAllocatorDefault,
-                customBlockSource: nil,
-                offsetToData: 0,
-                dataLength: byteCount,
-                flags: 0,
-                blockBufferOut: &blockBuf
-            )
-            pcm.withUnsafeBytes { rawBuf in
-                let base = rawBuf.baseAddress!.advanced(by: offsetFrames * 4)
-                _ = CMBlockBufferReplaceDataBytes(
-                    with: base,
-                    blockBuffer: blockBuf!,
-                    offsetIntoDestination: 0,
-                    dataLength: byteCount
-                )
-            }
-
-            var timing = CMSampleTimingInfo(
-                duration: CMTime(value: 1, timescale: 48_000),
-                presentationTimeStamp: CMTime(value: CMTimeValue(offsetFrames), timescale: 48_000),
-                decodeTimeStamp: .invalid
-            )
-            var sampleBuf: CMSampleBuffer?
-            CMSampleBufferCreate(
-                allocator: kCFAllocatorDefault,
-                dataBuffer: blockBuf,
-                dataReady: true,
-                makeDataReadyCallback: nil,
-                refcon: nil,
-                formatDescription: formatDesc,
-                sampleCount: framesThisChunk,
-                sampleTimingEntryCount: 1,
-                sampleTimingArray: &timing,
-                sampleSizeEntryCount: 0,
-                sampleSizeArray: nil,
-                sampleBufferOut: &sampleBuf
-            )
-            if let sb = sampleBuf {
-                aInput.append(sb)
-            }
-            offsetFrames += framesThisChunk
+        guard writer.startWriting() else {
+            fatalError("AVAssetWriter failed to start: \(String(describing: writer.error))")
         }
-        aInput.markAsFinished()
+        writer.startSession(atSourceTime: .zero)
 
-        await writer.finishWriting()
+        let previewKeyframes: [Int: String] = [
+            Int(1.00 * Double(fps)):  "01_cold_open.png",
+            Int(3.00 * Double(fps)):  "02_brand_reveal.png",
+            Int(7.00 * Double(fps)):  "03_radial_wheel_drag.png",
+            Int(10.50 * Double(fps)): "04_notch_success.png",
+            Int(15.00 * Double(fps)): "05_modifier_tools.png",
+            Int(20.00 * Double(fps)): "06_routes_176.png",
+            Int(24.50 * Double(fps)): "07_white_privacy.png",
+            Int(28.00 * Double(fps)): "08_finale_cta.png"
+        ]
+
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+        print("Encoding \(totalFrames) 1080p60 video frames + \(totalAudioSamples) 48kHz stereo interactive audio samples...")
+
+        let group = DispatchGroup()
+        let videoQueue = DispatchQueue(label: "com.docyo.render.video")
+        let audioQueue = DispatchQueue(label: "com.docyo.render.audio")
+
+        var currentFrame = 0
+        var videoFinished = false
+        group.enter()
+        vInput.requestMediaDataWhenReady(on: videoQueue) {
+            while vInput.isReadyForMoreMediaData && !videoFinished {
+                if currentFrame >= totalFrames {
+                    videoFinished = true
+                    vInput.markAsFinished()
+                    group.leave()
+                    break
+                }
+                autoreleasepool {
+                    guard let pool = adaptor.pixelBufferPool else {
+                        fatalError("Missing pixelBufferPool")
+                    }
+                    var pbOut: CVPixelBuffer?
+                    CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pbOut)
+                    guard let pb = pbOut else { fatalError("PixelBuffer allocation failed") }
+
+                    CVPixelBufferLockBaseAddress(pb, [])
+                    if let ctx = CGContext(
+                        data: CVPixelBufferGetBaseAddress(pb),
+                        width: width,
+                        height: height,
+                        bitsPerComponent: 8,
+                        bytesPerRow: CVPixelBufferGetBytesPerRow(pb),
+                        space: colorSpace,
+                        bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+                    ) {
+                        let tSec = Double(currentFrame) / Double(fps)
+                        director.renderFrame(time: tSec, into: ctx)
+                    }
+                    CVPixelBufferUnlockBaseAddress(pb, [])
+
+                    let pts = CMTime(value: CMTimeValue(currentFrame), timescale: CMTimeScale(fps))
+                    adaptor.append(pb, withPresentationTime: pts)
+
+                    if let pDir = previewDir, let name = previewKeyframes[currentFrame] {
+                        try? savePNG(from: pb, to: URL(fileURLWithPath: pDir).appendingPathComponent(name))
+                    }
+                }
+                currentFrame += 1
+            }
+        }
+
+        var audioOffset = 0
+        var audioFinished = false
+        let chunkFrames = 4096
+        group.enter()
+        aInput.requestMediaDataWhenReady(on: audioQueue) {
+            while aInput.isReadyForMoreMediaData && !audioFinished {
+                if audioOffset >= totalAudioSamples {
+                    audioFinished = true
+                    aInput.markAsFinished()
+                    group.leave()
+                    break
+                }
+                let framesThisChunk = min(chunkFrames, totalAudioSamples - audioOffset)
+                let byteCount = framesThisChunk * 4
+
+                var blockBuf: CMBlockBuffer?
+                CMBlockBufferCreateWithMemoryBlock(
+                    allocator: kCFAllocatorDefault,
+                    memoryBlock: nil,
+                    blockLength: byteCount,
+                    blockAllocator: kCFAllocatorDefault,
+                    customBlockSource: nil,
+                    offsetToData: 0,
+                    dataLength: byteCount,
+                    flags: 0,
+                    blockBufferOut: &blockBuf
+                )
+                pcmData.withUnsafeBytes { rawBuf in
+                    let base = rawBuf.baseAddress!.advanced(by: audioOffset * 4)
+                    _ = CMBlockBufferReplaceDataBytes(
+                        with: base,
+                        blockBuffer: blockBuf!,
+                        offsetIntoDestination: 0,
+                        dataLength: byteCount
+                    )
+                }
+
+                var timing = CMSampleTimingInfo(
+                    duration: CMTime(value: 1, timescale: 48_000),
+                    presentationTimeStamp: CMTime(value: CMTimeValue(audioOffset), timescale: 48_000),
+                    decodeTimeStamp: .invalid
+                )
+                var sampleBuf: CMSampleBuffer?
+                CMSampleBufferCreate(
+                    allocator: kCFAllocatorDefault,
+                    dataBuffer: blockBuf,
+                    dataReady: true,
+                    makeDataReadyCallback: nil,
+                    refcon: nil,
+                    formatDescription: formatDesc,
+                    sampleCount: framesThisChunk,
+                    sampleTimingEntryCount: 1,
+                    sampleTimingArray: &timing,
+                    sampleSizeEntryCount: 0,
+                    sampleSizeArray: nil,
+                    sampleBufferOut: &sampleBuf
+                )
+                if let sb = sampleBuf {
+                    aInput.append(sb)
+                }
+                audioOffset += framesThisChunk
+            }
+        }
+
+        group.wait()
+
+        let finishSem = DispatchSemaphore(value: 0)
+        writer.finishWriting {
+            finishSem.signal()
+        }
+        finishSem.wait()
+
         guard writer.status == .completed else {
             fatalError("Video writing failed: \(String(describing: writer.error))")
         }
-        print("✓ Rendered \(outURL.path)")
+        print("✓ Rendered 30.0s Launch Film with interactive audio & dynamic motion: \(outURL.path)")
     }
 }

@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { motion } from "motion/react";
-import { DOWNLOAD_CONFIG } from "@/config/site";
+import { assetUrl, DOWNLOAD_CONFIG } from "@/config/site";
 import { useDetectedOS } from "@/lib/useOs";
 import { useLatestMacRelease } from "@/lib/useLatestRelease";
 import { useHydratedReducedMotion } from "@/lib/useHydratedReducedMotion";
 import { AppleIcon, WindowsIcon } from "@/components/Icons";
-import { LaunchVideoModal } from "@/components/LaunchVideoModal";
 import { Magnetic } from "@/components/MagneticButton";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -16,7 +15,6 @@ export function Hero() {
   const os = useDetectedOS();
   const macRelease = useLatestMacRelease();
   const reduced = useHydratedReducedMotion();
-  const [videoOpen, setVideoOpen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
 
   const isWindows = os === "windows";
@@ -41,32 +39,32 @@ export function Hero() {
       id="top"
       ref={sectionRef}
       onPointerMove={handlePointerMove}
-      className="hero-spotlight relative overflow-hidden pt-12 pb-12 sm:pt-20 sm:pb-16 lg:pt-24"
+      className="hero-spotlight relative flex min-h-[75vh] flex-col justify-center overflow-hidden -mt-16 pt-32 pb-20 sm:min-h-[85vh] sm:pt-40 sm:pb-28 lg:min-h-[92vh] lg:pt-48 lg:pb-36"
     >
+      {/* Hero Cinematic Landscape Background - Flush with Navbar */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 overflow-hidden select-none"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={assetUrl("/image.png")}
+          alt=""
+          className="h-full w-full object-cover object-top opacity-75"
+        />
+        {/* Ambient brand purple glow overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_75%_55%_at_50%_35%,rgba(124,58,237,0.18),transparent_75%)]" />
+        {/* Smooth bottom fade into page background #0A0A0B */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0B] via-[#0A0A0B]/30 to-transparent" />
+      </div>
+
       {/* Subtle architectural coordinate hairlines */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_25%,#000_35%,transparent_100%)]"
+        className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_75%_60%_at_50%_35%,#000_35%,transparent_100%)]"
       />
 
-      <div className="relative mx-auto max-w-[1280px] px-5 sm:px-8">
-        {/* Eyebrow technical tag */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: EASE }}
-          className="mb-7 inline-flex flex-wrap items-center gap-2.5 rounded-full border border-white/[0.09] bg-[#111114]/90 px-3.5 py-1.5"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-white/75">
-            Local-first file converter &amp; document toolkit
-          </span>
-          <span className="hidden sm:inline text-white/25">·</span>
-          <span className="hidden sm:inline font-mono text-[11px] text-[#A78BFA]">
-            GPL-3.0 · v{DOWNLOAD_CONFIG.version}
-          </span>
-        </motion.div>
-
+      <div className="relative z-10 mx-auto w-full max-w-[1280px] px-5 sm:px-8">
         {/* Asymmetric editorial headline block */}
         <h1 className="font-display text-[clamp(3.1rem,8.2vw,7.6rem)] font-semibold leading-[0.94] tracking-[-0.035em] text-white">
           {headlineSegments.map((seg, idx) => (
@@ -149,22 +147,6 @@ export function Hero() {
                 )}
               </a>
             </Magnetic>
-
-            <button
-              type="button"
-              onClick={() => setVideoOpen(true)}
-              className="group inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl border border-white/[0.12] bg-[#111114]/90 px-4 text-[14px] font-medium text-white/85 transition-all duration-200 hover:border-[#7C3AED]/60 hover:bg-[#17171B] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA]"
-            >
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#7C3AED]/25 text-[#A78BFA] transition-colors group-hover:bg-[#7C3AED] group-hover:text-white">
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                  <path d="M3.2 2.1 10 6l-6.8 3.9V2.1Z" fill="currentColor" />
-                </svg>
-              </span>
-              <span>Launch Film</span>
-              <span className="font-mono text-[11px] text-white/45 group-hover:text-[#A78BFA]">
-                0:30
-              </span>
-            </button>
           </motion.div>
         </div>
 
@@ -205,8 +187,6 @@ export function Hero() {
           </a>
         </motion.div>
       </div>
-
-      <LaunchVideoModal open={videoOpen} onClose={() => setVideoOpen(false)} />
     </section>
   );
 }
