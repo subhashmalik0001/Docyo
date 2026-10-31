@@ -20,13 +20,29 @@ const DEFAULT_MAC: ResolvedMacRelease = {
 let cachedRelease: ResolvedMacRelease | null = null;
 let inflightPromise: Promise<ResolvedMacRelease> | null = null;
 
+function parseSemver(v: string): [number, number, number] | null {
+  const m = v.replace(/^v/, "").match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function isNewerVersion(candidate: string, baseline: string): boolean {
+  const a = parseSemver(candidate);
+  const b = parseSemver(baseline);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] > b[i];
+  }
+  return false;
+}
+
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return DEFAULT_MAC.size;
   const mb = bytes / (1024 * 1024);
   return `${mb.toFixed(1)} MB`;
 }
 
-async function fetchLatestMacAsset(): Promise<ResolvedMacRelease> {
+async function fetchLatestMacDmg(): Promise<ResolvedMacRelease> {
   if (cachedRelease) return cachedRelease;
   if (inflightPromise) return inflightPromise;
 
@@ -42,6 +58,10 @@ async function fetchLatestMacAsset(): Promise<ResolvedMacRelease> {
         return DEFAULT_MAC;
       }
       const cleanVersion = data.tag_name.replace(/^v/, "");
+      if (!isNewerVersion(cleanVersion, DEFAULT_MAC.version)) {
+        return DEFAULT_MAC;
+      }
+
       const assets: Array<{
         name?: string;
         size?: number;
@@ -49,27 +69,27 @@ async function fetchLatestMacAsset(): Promise<ResolvedMacRelease> {
         browser_download_url?: string;
       }> = Array.isArray(data.assets) ? data.assets : [];
 
-      const macZip =
+      const macDmg =
         assets.find(
           (a) =>
             a.state === "uploaded" &&
             typeof a.name === "string" &&
-            /macOS\.zip$/i.test(a.name) &&
+            /\.dmg$/i.test(a.name) &&
             typeof a.browser_download_url === "string" &&
             a.browser_download_url.startsWith(
               "https://github.com/subhashmalik0001/Docyo/releases/download/"
             )
         ) ?? null;
 
-      if (!macZip || !macZip.browser_download_url || !macZip.name) {
+      if (!macDmg || !macDmg.browser_download_url || !macDmg.name) {
         return DEFAULT_MAC;
       }
 
       const resolved: ResolvedMacRelease = {
-        version: cleanVersion || DEFAULT_MAC.version,
-        assetName: macZip.name,
-        size: typeof macZip.size === "number" ? formatBytes(macZip.size) : DEFAULT_MAC.size,
-        downloadUrl: macZip.browser_download_url,
+        version: cleanVersion,
+        assetName: macDmg.name,
+        size: typeof macDmg.size === "number" ? formatBytes(macDmg.size) : DEFAULT_MAC.size,
+        downloadUrl: macDmg.browser_download_url,
       };
       cachedRelease = resolved;
       return resolved;
@@ -82,8 +102,8 @@ async function fetchLatestMacAsset(): Promise<ResolvedMacRelease> {
 }
 
 /**
- * Provides a direct binary `.zip` download URL immediately on initial render,
- * and upgrades automatically if a newer macOS release is published on GitHub.
+ * Serves the direct `Docyo-macOS.dmg` disk image immediately on render,
+ * and upgrades automatically only if a newer `.dmg` release is published on GitHub.
  */
 export function useLatestMacRelease(): ResolvedMacRelease {
   const [release, setRelease] = useState<ResolvedMacRelease>(
@@ -92,7 +112,7 @@ export function useLatestMacRelease(): ResolvedMacRelease {
 
   useEffect(() => {
     let active = true;
-    fetchLatestMacAsset().then((resolved) => {
+    fetchLatestMacDmg().then((resolved) => {
       if (active) setRelease(resolved);
     });
     return () => {
@@ -102,4 +122,3 @@ export function useLatestMacRelease(): ResolvedMacRelease {
 
   return release;
 }
-

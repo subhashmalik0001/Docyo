@@ -32,5 +32,6 @@ jobs:
             exit 0
           fi
           ditto -c -k --sequesterRsrc --keepParent 'dist/Docyo.app' "dist/Docyo-$VERSION-macOS.zip"
-          shasum -a 256 "dist/Docyo-$VERSION-macOS.zip" > dist/SHA256SUMS.txt
-          gh release create "v$VERSION" "dist/Docyo-$VERSION-macOS.zip" dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Docyo $VERSION · Local-first file converter" --notes "Docyo release for macOS 26+. Ad-hoc signed. Download the ZIP, unzip, and move Docyo to Applications. Installation and documentation: https://subhashmalik0001.github.io/Docyo/#download ."
+          bash scripts/build-dmg.sh 'dist/Docyo.app' "dist/Docyo-$VERSION-macOS.dmg"
+          shasum -a 256 "dist/Docyo-$VERSION-macOS.dmg" "dist/Docyo-$VERSION-macOS.zip" > dist/SHA256SUMS.txt
+          gh release create "v$VERSION" "dist/Docyo-$VERSION-macOS.dmg" "dist/Docyo-$VERSION-macOS.zip" dist/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Docyo $VERSION · Local-first file converter" --notes "Docyo release for macOS 26+. Ad-hoc signed. Download the DMG, open it, and drag Docyo to Applications. Installation and documentation: https://subhashmalik0001.github.io/Docyo/#download ."
