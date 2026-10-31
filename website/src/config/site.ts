@@ -38,11 +38,12 @@ export const DOWNLOAD_CONFIG = {
       edition: "Native Menu-Bar & Notch App",
       badge: "Apple Silicon & Intel",
       osRequirement: "macOS 26.0+",
-      assetName: "Docyo-macOS.zip",
+      assetName: "Docyo-0.2.0-macOS.zip",
       size: "5.2 MB",
-      downloadUrl: "https://github.com/subhashmalik0001/Docyo/releases/latest",
+      downloadUrl:
+        "https://github.com/subhashmalik0001/Docyo/releases/download/v0.2.0/Docyo-0.2.0-macOS.zip",
       steps: [
-        "Unzip Docyo-macOS.zip in Downloads.",
+        "Unzip Docyo-0.2.0-macOS.zip in Downloads.",
         "Drag Docyo.app into your Applications folder.",
         "Open Docyo — it lives quietly in your menu bar.",
         "If prompted by Gatekeeper, approve once in System Settings → Privacy & Security.",

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { DOWNLOAD_CONFIG } from "@/config/site";
 import { useDetectedOS } from "@/lib/useOs";
+import { useLatestMacRelease } from "@/lib/useLatestRelease";
 import {
   AppleIcon,
   ArrowUpRightIcon,
@@ -21,6 +22,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function DownloadSection() {
   const os = useDetectedOS();
+  const macRelease = useLatestMacRelease();
   const reduced = useReducedMotion();
   const [copiedFfmpeg, setCopiedFfmpeg] = useState(false);
 
@@ -77,10 +79,10 @@ export function DownloadSection() {
           <div className="flex flex-wrap items-center gap-4">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-[#111114] px-3.5 py-1.5 font-mono text-[12px] text-white/75">
               <span className="h-1.5 w-1.5 rounded-full bg-[#7C3AED]" />
-              Current release: v{DOWNLOAD_CONFIG.version}
+              Current release: v{macRelease.version}
             </span>
             <a
-              href={DOWNLOAD_CONFIG.releasesLatestUrl}
+              href={DOWNLOAD_CONFIG.allReleasesUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="nav-underline inline-flex items-center gap-1.5 text-[14px] font-medium text-white/70 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7C3AED]"
@@ -148,7 +150,7 @@ export function DownloadSection() {
                     {mac.osRequirement}
                   </span>
                   <span className="rounded-md border border-white/[0.08] bg-[#0A0A0B] px-2.5 py-1 text-[#A78BFA]">
-                    v{DOWNLOAD_CONFIG.version} · {mac.size}
+                    v{macRelease.version} · {macRelease.size}
                   </span>
                 </div>
 
@@ -156,7 +158,8 @@ export function DownloadSection() {
                 <div className="mt-6">
                   <Magnetic strength={0.12} className="w-full">
                     <a
-                      href={mac.downloadUrl}
+                      href={macRelease.downloadUrl}
+                      download={macRelease.assetName}
                       className={`flex h-13 w-full items-center justify-center sm:justify-between rounded-xl px-5 text-[14.5px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA] ${
                         highlightMac
                           ? "bg-[#7C3AED] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-[#6D28D9]"
@@ -168,12 +171,12 @@ export function DownloadSection() {
                         <span>Download for macOS</span>
                       </span>
                       <span className="hidden sm:inline font-mono text-[12px] text-white/75">
-                        {mac.assetName}
+                        {macRelease.assetName}
                       </span>
                     </a>
                   </Magnetic>
                   <div className="mt-2 font-mono text-[11px] text-white/45 sm:hidden">
-                    Asset: {mac.assetName}
+                    Asset: {macRelease.assetName}
                   </div>
                 </div>
 
@@ -264,6 +267,7 @@ export function DownloadSection() {
                   <Magnetic strength={0.12} className="w-full">
                     <a
                       href={win.downloadUrl}
+                      download={win.assetName}
                       className={`flex h-13 w-full items-center justify-center sm:justify-between rounded-xl px-5 text-[14.5px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA] ${
                         highlightWindows
                           ? "bg-[#7C3AED] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-[#6D28D9]"
@@ -343,6 +347,7 @@ export function DownloadSection() {
           <div className="flex flex-wrap items-center gap-3">
             <a
               href={linux.downloadUrl}
+              download={linux.assetName}
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 font-mono text-[12px] transition-colors focus-visible:outline-2 focus-visible:outline-[#7C3AED] ${
                 highlightLinux
                   ? "bg-[#7C3AED] text-white hover:bg-[#6D28D9]"

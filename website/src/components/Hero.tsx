@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { DOWNLOAD_CONFIG } from "@/config/site";
 import { useDetectedOS } from "@/lib/useOs";
+import { useLatestMacRelease } from "@/lib/useLatestRelease";
 import { AppleIcon, WindowsIcon } from "@/components/Icons";
 import { Magnetic } from "@/components/MagneticButton";
 
@@ -11,6 +12,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function Hero() {
   const os = useDetectedOS();
+  const macRelease = useLatestMacRelease();
   const reduced = useReducedMotion();
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -107,7 +109,8 @@ export function Hero() {
           >
             <Magnetic strength={0.18}>
               <a
-                href={DOWNLOAD_CONFIG.platforms.macos.downloadUrl}
+                href={macRelease.downloadUrl}
+                download={macRelease.assetName}
                 className={`group inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl px-5 text-[14px] font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA] ${
                   macPrimary
                     ? "bg-[#7C3AED] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-[#6D28D9]"
@@ -127,6 +130,7 @@ export function Hero() {
             <Magnetic strength={0.18}>
               <a
                 href={DOWNLOAD_CONFIG.platforms.windows.downloadUrl}
+                download={DOWNLOAD_CONFIG.platforms.windows.assetName}
                 className={`group inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl px-5 text-[14px] font-medium transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A78BFA] ${
                   isWindows
                     ? "bg-[#7C3AED] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-[#6D28D9]"
