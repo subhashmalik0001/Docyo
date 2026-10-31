@@ -16,7 +16,9 @@ function resolveSiteUrl(): string {
     process.env.URL ||
     process.env.CF_PAGES_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-    "https://subhashmalik0001.github.io/Docyo";
+    (process.env.NODE_ENV === "development"
+      ? "http://localhost:3000"
+      : "https://subhashmalik0001.github.io/Docyo");
 
   const withProtocol = /^https?:\/\//i.test(candidate)
     ? candidate
@@ -30,7 +32,7 @@ export const SITE_CONFIG = {
   name: "Docyo",
   tagline: "Drag. Hold Shift. Convert.",
   url: RESOLVED_SITE_URL,
-  ogImageUrl: `${RESOLVED_SITE_URL}/og-image.png`,
+  ogImageUrl: `${RESOLVED_SITE_URL}/og-image.png?v=0.2.0`,
   description:
     "Private, offline file converter, media processor, and 25-tool document toolkit for macOS, with an early Windows and Linux desktop edition. Zero cloud uploads, zero accounts, zero telemetry.",
   author: {
