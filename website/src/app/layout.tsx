@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { DOWNLOAD_CONFIG, SITE_CONFIG } from "@/config/site";
 import { SmoothScroll } from "@/components/SmoothScroll";
+import { Analytics } from "@vercel/analytics/next";
 
 const satoshi = localFont({
   src: [
@@ -161,6 +162,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <SmoothScroll>{children}</SmoothScroll>
+        <Analytics />
       </body>
     </html>
   );
