@@ -1,24 +1,66 @@
-# Docyo
+<p align="center">
+  <a href="https://subhashmalik0001.github.io/Docyo/">
+    <img src="website/public/docyo-logo.png" alt="Docyo Logo" width="100" height="100" />
+  </a>
+</p>
 
-A fast, local-first file converter, media processor, and document toolkit for **macOS**, with an early **Windows/Linux desktop edition**.
+<h1 align="center">Docyo</h1>
 
-Private, offline, non-destructive file conversions right where your files live. No accounts, no cloud uploads, no subscriptions.
+<p align="center">
+  <strong>Drag. Hold Shift. Convert.</strong><br>
+  A fast, local-first file converter, media processor, and 25-tool document toolkit for <b>macOS</b>, with an early <b>Windows and Linux desktop edition</b>.
+</p>
 
-[![macOS build and tests](https://github.com/subhashmalik0001/Docyo/actions/workflows/build.yml/badge.svg)](https://github.com/subhashmalik0001/Docyo/actions/workflows/build.yml)
-[![Windows and Linux desktop](https://github.com/subhashmalik0001/Docyo/actions/workflows/desktop.yml/badge.svg)](https://github.com/subhashmalik0001/Docyo/actions/workflows/desktop.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+<p align="center">
+  <em>Private, offline, non-destructive file conversions right where your files live.<br>Zero cloud uploads. Zero accounts. Zero subscriptions. Zero telemetry.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/subhashmalik0001/Docyo/actions/workflows/build.yml"><img src="https://github.com/subhashmalik0001/Docyo/actions/workflows/build.yml/badge.svg" alt="macOS build and tests" /></a>
+  <a href="https://github.com/subhashmalik0001/Docyo/actions/workflows/desktop.yml"><img src="https://github.com/subhashmalik0001/Docyo/actions/workflows/desktop.yml/badge.svg" alt="Windows and Linux desktop" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3" /></a>
+  <a href="https://github.com/subhashmalik0001/Docyo/releases/latest"><img src="https://img.shields.io/badge/release-v0.2.0-7C3AED.svg" alt="Latest Release v0.2.0" /></a>
+  <a href="https://subhashmalik0001.github.io/Docyo/"><img src="https://img.shields.io/badge/offline-100%25%20local-success.svg" alt="100% Offline" /></a>
+</p>
+
+<p align="center">
+  <a href="https://subhashmalik0001.github.io/Docyo/"><strong>Website</strong></a> •
+  <a href="https://github.com/subhashmalik0001/Docyo/releases"><strong>Download</strong></a> •
+  <a href="#key-features"><strong>Features</strong></a> •
+  <a href="#-launch-film-030"><strong>Launch Video</strong></a> •
+  <a href="#installation"><strong>Installation</strong></a> •
+  <a href="docs/ARCHITECTURE.md"><strong>Architecture</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://subhashmalik0001.github.io/Docyo/">
+    <img src="docs/og-image.png" alt="Docyo Preview Banner" width="100%" />
+  </a>
+</p>
+
+---
+
+## 🎬 Launch Film (0:30)
+
+Watch the 30-second product film demonstrating the global Shift-drag radial wheel, the MacBook Notch companion HUD, and 25 offline tools:
+
+<video src="https://github.com/subhashmalik0001/Docyo/raw/main/website/public/docyo-launch.mp4" controls="controls" width="100%" poster="docs/og-image.jpg">
+  <a href="https://github.com/subhashmalik0001/Docyo/raw/main/website/public/docyo-launch.mp4">▶ Click here to view or download the Docyo Launch Video (MP4)</a>
+</video>
+
+> 💡 *The launch film can also be viewed with sound directly on the [Docyo Website](https://subhashmalik0001.github.io/Docyo/).*
 
 ---
 
 ## Key Features
 
-- **Gesture-Driven Radial Menu (macOS):** Select files, hold `Shift` while dragging, and drop onto the radial wheel to convert instantly.
+- **Gesture-Driven Radial Menu (macOS):** Select files, hold `Shift` while dragging, and drop onto the radial wheel to convert instantly. Hold `Option + Shift` for the 25 built-in tools.
 - **Notch Companion & Progress HUD:** Subtle, unobtrusive progress indicator expanding from your MacBook notch or menu bar. Pure black or native macOS glass material.
-- **Broad Format Conversion:**
+- **Broad Format Conversion (176 Routes):**
   - **Images:** PNG, JPEG, WebP, HEIC, AVIF, TIFF, BMP (with resizing, aspect-ratio framing, and rotation). Built-in lossless WebP engine without external library requirements.
   - **Documents & PDFs:** PDF merge, split by page or range, compress, OCR text extraction, and export to DOCX.
   - **Audio & Video:** Transcode MP4, WebM, MP3, WAV, FLAC, OGG, and trim media clips with frame accuracy using optional local FFmpeg.
-  - **Subtitles:** Bidirectional SRT ↔ VTT parsing and timing adjustment.
+  - **Subtitles & Hash:** Bidirectional SRT ↔ VTT parsing, timing adjustment, and SHA-256 integrity checks.
 - **Local-First & Privacy Guaranteed:** All files stay on your machine. Zero cloud processing, zero telemetry, zero trackers.
 - **Non-Destructive Batch Operations:** Originals are never modified or deleted. Collision-resistant unique filenames are generated automatically (`image-converted-1.jpg`).
 - **Cross-Platform Desktop Edition:** Lightweight Qt-based desktop converter for Windows and Linux with process-isolated workers.
@@ -42,8 +84,8 @@ Private, offline, non-destructive file conversions right where your files live. 
 ## Installation
 
 ### macOS
-1. Download `Docyo-macOS.zip` from [GitHub Releases](https://github.com/subhashmalik0001/Docyo/releases).
-2. Unzip and drag `Docyo.app` into your `/Applications` folder.
+1. Download `Docyo-macOS.zip` (or `Docyo-macOS.dmg`) from [GitHub Releases](https://github.com/subhashmalik0001/Docyo/releases).
+2. Open the DMG and drag `Docyo.app` into your `/Applications` folder.
 3. Open `Docyo`. The app runs quietly in your menu bar.
 4. *(Optional)* To enable media transcoding routes (e.g. WebM, OGG), install FFmpeg via Homebrew:
    ```bash
